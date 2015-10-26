@@ -29,8 +29,16 @@ module usbHost
 
   endtask: writeData
 
-  // usbHost starts here!!
+  enum {J = 1, K = 0, SE0 = 2} enc_busState, bs_outputBusState, nrzi_outputBusState;
 
+  logic enc_dataReady, enc_okToSend;
+  encoder enc0(clk, rst_L, enc_dataReady, enc_okToSend, packet, enc_busState, bs_dataReady);
+
+  logic bs_dataReady, bs_okToSend;
+  bitStuff bs0(clk, rst_L, bs_dataReady, bs_okToSend, enc_busState, enc_okToSend, nrzi_dataReady, bs_outputBusState);
+
+  logic nrzi_dataReady;
+  nrzi nrzi0(clk, rst_L, nrzi_dataReady, bs_outputBusState, nrzi_outputBusState);
 
 endmodule: usbHost
 
@@ -40,9 +48,10 @@ endmodule: usbHost
  first send the sync bits and will end with the EOP bits.
  */
 module encoder
-  (input logic clk, rst_L, dataReady,
+  (input logic clk, rst_L, dataReady, okToSend,
    input logic [87:0] packet,
-   output busState);
+   output busState,
+   output logic outputReady);
 
    logic [7:0] 	      index; //Index counter
    logic [87:0]       inputReg; //Holds our data
@@ -262,9 +271,9 @@ module crc16
 endmodule : crc16
 
 module bitStuff
-  (input logic clk, rst_L, dataReady,
+  (input logic clk, rst_L, dataReady, okToSend,
    input inputBusState,
-   output logic inboundReady,
+   output logic readyToReceive, outputReady,
    output outputBusState);
 
    enum {J = 1, K = 0, SE0 = 2} inputBusState, outputBusState;
@@ -272,10 +281,10 @@ module bitStuff
    logic [2:0] 	counter;
 
    always_comb begin
-      inboundReady = 1;
+      readyToReceive = 1;
       outputBusState = inputBusState;   
       if(counter == 5) begin
-	 inboundReady = 0;
+	 readyToReceive = 0;
       end
       else if(counter == 6) begin
 	 outputBusState = K;
@@ -304,31 +313,23 @@ module bitStuff
 endmodule : bitStuff
 
 module nrzi
-  (input logic clk, rst_L, dataReady,
-   input inputBusState,
-   output outputBusState);
+    (input logic clk, rst_L, dataReady,
+     input inputBusState,
+     output outputBusState);
 
-   enum {J = 1, K = 0, SE0 = 2} inputBusState, outputBusState;
-   
-   always_ff @(posedge clk, negedge rst_L) begin
-      if(~rst_L) begin
-	 outputBusState <= J;
-      end
-      else begin
-	 if(inputBusState == K && dataReady) begin
-	    outputBusState <= (outputBusState == K) ? J : K;
-	 end
-	 else if(dataReady && inputBusState == SE0) begin
-	    outputBusState <= SE0;
-	 end
-	 else if(dataReady) begin
-	    outputBusState <= inputBusState;
-	 end
-      end
-   end
+    enum {J = 1, K = 0, SE0 = 2} inputBusState, outputBusState;
+
+    always_ff @(posedge clk, negedge rst_L) begin
+        if(~rst_L) begin
+            outputBusState <= J;
+        end
+        else begin
+            if(dataReady) begin
+                if(inputBusState == K) outputBusState <= (outputBusState == K) ? J : K;
+                else if(inputBusState == SE0) outputBusState <= SE0;
+                else outputBusState <= inputBusState;
+            end
+        end
+    end
 endmodule : nrzi
 
-
-
-
-   
