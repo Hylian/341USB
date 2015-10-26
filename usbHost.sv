@@ -182,47 +182,47 @@ module encoder
 endmodule : encoder
 
 module crc5
-  (input logic clk, rst_L,
-   input logic [10:0] data,
-   input logic 	      dataReady,
-   output logic [4:0] crc);
+    (input logic clk, rst_L,
+     input logic [10:0] data,
+     input logic dataReady,
+     output logic [4:0] crc);
 
-   enum 	      {WAIT, GO} state, nextState;
+    enum {WAIT, GO} state, nextState;
 
-   logic [10:0]       dataReg;
-   logic [4:0] 	      counter;
+    logic [10:0] dataReg;
+    logic [4:0] counter;
 
-   always_comb begin
-      case(state)
-	WAIT: nextState = (dataReady) ? GO : WAIT;
-	GO: nextState = (counter == 5'd10) ? WAIT : GO;
-      endcase // case (state)
-   end
+    always_comb begin
+        case(state)
+            WAIT: nextState = (dataReady) ? GO : WAIT;
+            GO: nextState = (counter == 5'd10) ? WAIT : GO;
+        endcase
+    end
    
-   
-   always_ff @(posedge clk, negedge rst_L) begin
-      if(~rst_L) begin
-	 state <= WAIT;
-	 crc <= 0;
-	 counter <= 0;
-      end
-      else begin
-	 if(state == WAIT && nextState == GO) begin
-	    dataReg <= data;
-	    crc <= 0;
-	    counter <= 0;
-	 end
-	 if(state == GO) begin
-	    crc[0] <= (dataReg[counter]^crc[4]);
-	    crc[1] <= crc[0];
-	    crc[2] <= (dataReg[counter]^crc[4])^crc[1];
-	    crc[3] <= crc[2];
-	    crc[4] <= crc[3];
-	    counter <= counter + 1;
-	 end
-	 state <= nextState;
-      end
-      
+    always_ff @(posedge clk, negedge rst_L) begin
+        if(~rst_L) begin
+            state <= WAIT;
+            crc <= 0;
+            counter <= 0;
+        end
+        else begin
+            if(state == WAIT && nextState == GO) begin
+                dataReg <= data;
+                crc <= 0;
+                counter <= 0;
+            end
+            if(state == GO) begin
+                crc[0] <= (dataReg[counter]^crc[4]);
+                crc[1] <= crc[0];
+                crc[2] <= (dataReg[counter]^crc[4])^crc[1];
+                crc[3] <= crc[2];
+                crc[4] <= crc[3];
+                counter <= counter + 1;
+            end
+            state <= nextState;
+        end
+    end
+
 endmodule : crc5
 
 module crc16
