@@ -48,136 +48,131 @@ endmodule: usbHost
  first send the sync bits and will end with the EOP bits.
  */
 module encoder
-  (input logic clk, rst_L, dataReady, okToSend,
-   input logic [87:0] packet,
-   output busState,
-   output logic outputReady);
+    (input logic clk, rst_L, dataReady, okToSend,
+     input logic [87:0] packet,
+     output busState,
+     output logic outputReady);
 
-   logic [7:0] 	      index; //Index counter
-   logic [87:0]       inputReg; //Holds our data
-   logic [15:0]       crc, crc16Result;
-   logic [7:0] 	      count;
-   logic [4:0] 	      crc5Result;
-   
+    logic [7:0] index; //Index counter
+    logic [87:0] inputReg; //Holds our data
+    logic [15:0] crc, crc16Result;
+    logic [7:0] count;
+    logic [4:0] crc5Result;
 	   
-   enum 	      {WAIT, SYNC, DATA, CRC, EOP} state, nextState;
-   enum {OUT = 4'b0001, IN = 4'b1001, DATA0 = 4'b0011,
-         ACK = 4'b0010, NAK = 4'b1010} pid;
-   enum {J = 1, K = 0, SE0 = 2} busState;
-   
+    enum {WAIT, SYNC, DATA, CRC, EOP} state, nextState;
+    enum {OUT = 4'b0001, IN = 4'b1001, DATA0 = 4'b0011,
+          ACK = 4'b0010, NAK = 4'b1010} pid;
+    enum {J = 1, K = 0, SE0 = 2} busState;
 
-   crc5 a1(clk, rst_L, packet[18:8], dataReady, crc5Result);
-   crc16 a2(clk, rst_L, packet[71:8], dataReady, crc16Result);
+    crc5 a1(clk, rst_L, packet[18:8], dataReady, crc5Result);
+    crc16 a2(clk, rst_L, packet[71:8], dataReady, crc16Result);
    
-   
-   
-   //Comb Logic
-   always_comb begin
-      crc = (pid == DATA0) ? crc16Result : crc5Result;
-      busState = J;
-      pid = inputReg[3:0];
-      case(state)
-	WAIT: begin
-	   nextState = (dataReady) ? SYNC : WAIT;
-	end
-	SYNC: begin //Sends a 7 zeros then a 1 to sync the clock
-	   if(counter == 8'd7) begin
-	      nextState = DATA;
-	   end
-	   else begin
-	      nextState = SYNC;
-	      busState = K;
-	   end
-	end
-	DATA: begin
-	   busState = inputReg[index];
-	   nextState = DATA;
-	   case(pid)
-	     OUT: begin
-		if(index == 8'd18) begin
-		   nextState = CRC;
-		end
-	     end
-	     IN: begin
-		if(index == 8'd18) begin
-		   nextState = CRC;
-		end
-	     end
-	     DATA0: begin
-		if(index == 8'd71) begin
-		   nextState = CRC;
-		end
-	     end
-	     ACK: begin
-		if(index == 8'd7) begin
-		   nextState = EOP;
-		end
-	     end
-	     NAK: begin
-		if(index == 8'd7) begin
-		   nextState = EOP;
-		end
-	     end
-	   endcase // case (pid)
-	end // case: DATA
-	CRC: begin
-	   nextState = CRC;
-	   busState = crcResult[counter];
-	   if((pid == OUT || pid == IN) && (counter == 8'd4)) begin
-	      nextState = EOP;
-	   end
-	   else if(pid == DATA0 && counter == 8'd15) begin
-	      nextState = EOP;
-	   end
-	end
-	EOP: begin
-	   if(counter = 8'd2) begin
-	      busState = J;
-	      nextState = WAIT;
-	   end
-	   else begin
-	      busState = SE0;
-	      nextState = EOP;
-	   end
-	end // case: EOP
-      endcase // case (state)
-   end
+    always_comb begin
+        crc = (pid == DATA0) ? crc16Result : crc5Result;
+        busState = J;
+        pid = inputReg[3:0];
+        case(state)
+            WAIT: begin
+                nextState = (dataReady) ? SYNC : WAIT;
+            end
+            SYNC: begin //Sends 7 zeroes and a one
+                if(counter == 8'd7) begin
+                    nextState = DATA;
+                end
+                else begin
+                    nextState = SYNC;
+                    busState = K;
+                end
+            end
+            DATA: begin
+                busState = inputReg[index];
+                nextState = DATA;
+                case(pid)
+                    OUT: begin
+                        if(index == 8'd18) begin
+                            nextState = CRC;
+                        end
+                    end
+                    IN: begin
+                        if(index == 8'd18) begin
+                            nextState = CRC;
+                        end
+                    end
+                    DATA0: begin
+                        if(index == 8'd71) begin
+                            nextState = CRC;
+                        end
+                    end
+                    ACK: begin
+                        if(index == 8'd7) begin
+                            nextState = EOP;
+                        end
+                    end
+                    NAK: begin
+                        if(index == 8'd7) begin
+                            nextState = EOP;
+                        end
+                    end
+                endcase // case (pid)
+            end // case: DATA
+            CRC: begin
+                nextState = CRC;
+                busState = crcResult[counter];
+                if((pid == OUT || pid == IN) && (counter == 8'd4)) begin
+                    nextState = EOP;
+                end
+                else if(pid == DATA0 && counter == 8'd15) begin
+                    nextState = EOP;
+                end
+            end
+            EOP: begin
+                if(counter = 8'd2) begin
+                    busState = J;
+                    nextState = WAIT;
+                end
+                else begin
+                    busState = SE0;
+                    nextState = EOP;
+                end
+            end // case: EOP
+        endcase // case (state)
+    end
 
-   always_ff @(posedge clk, negedge rst_L) begin
-      if(~rst_L) begin
-	 state <= WAIT;
-	 counter <= 0;
-	 index <= 0;
-      end
-      else begin
-	 if(state == WAIT) begin
-	    counter <= 0;
-	    index <= 0;
-	 end
-	 if(state == WAIT && nextState == SYNC) begin
-	    inputReg <= packet;
-	 end
-	 if(state == SYNC) begin
-	    counter <= counter + 1;
-	    if(nextState == DATA) begin
-	       counter <= 0;
-	    end
-	 end
-	 if(state == DATA) begin
-	    index <= index + 1;
-	 end
-	 if(state == CRC) begin
-	    counter <= counter + 1;
-	    if(nextState == EOP) begin
-	       counter <= 0;
-	    end
-	 end
-	 if(state == EOP && nextState == WAIT) begin
-	    counter <= 0;
-	 end
-	 state <= nextState;
-      end
-   end
+    always_ff @(posedge clk, negedge rst_L) begin
+        if(~rst_L) begin
+            state <= WAIT;
+            counter <= 0;
+            index <= 0;
+        end
+        else begin
+            if(state == WAIT) begin
+                counter <= 0;
+                index <= 0;
+            end
+            if(state == WAIT && nextState == SYNC) begin
+                inputReg <= packet;
+            end
+            if(state == SYNC) begin
+                counter <= counter + 1;
+                if(nextState == DATA) begin
+                    counter <= 0;
+                end
+            end
+            if(state == DATA) begin
+                index <= index + 1;
+            end
+            if(state == CRC) begin
+                counter <= counter + 1;
+                if(nextState == EOP) begin
+                    counter <= 0;
+                end
+            end
+            if(state == EOP && nextState == WAIT) begin
+                counter <= 0;
+            end
+            state <= nextState;
+        end
+    end
    
 endmodule : encoder
 
