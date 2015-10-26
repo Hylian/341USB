@@ -226,55 +226,55 @@ module crc5
 endmodule : crc5
 
 module crc16
-  (input logic clk, rst_L,
-   input logic [71:0]  data,
-   input logic 	       dataReady,
-   output logic [15:0] crc);
+    (input logic clk, rst_L,
+     input logic [71:0]  data,
+     input logic dataReady,
+     output logic [15:0] crc);
 
    
-   enum 	      {WAIT, GO} state, nextState;
+    enum {WAIT, GO} state, nextState;
 
-   logic [10:0]       dataReg;
-   logic [7:0] 	      counter;
+    logic [71:0] dataReg;
+    logic [7:0] counter;
 
-   always_comb begin
-      case(state)
-	WAIT: nextState = (dataReady) ? GO : WAIT;
-	GO: nextState = (counter == 8'd71) ? WAIT : GO;
-      endcase // case (state)
-   end
-   
-   
-   always_ff @(posedge clk, negedge rst_L) begin
-      if(~rst_L) begin
-	 state <= WAIT;
-	 crc <= 0;
-	 counter <= 0;
-      end
-      else begin
-	 if(state == WAIT && nextState == GO) begin
-	    dataReg <= data;
-	    crc <= 0;
-	    counter <= 0;
-	 end
-	 if(state == GO) begin
-	    crc[0] <= (dataReg[counter]^crc[15]);
-	    crc[1] <= crc[0];
-	    crc[2] <= (dataReg[counter]^crc[15])^crc[1];
-	    crc[14:3] <= crc[13:2];
-	    crc[15] <= (dataReg[counter]^crc[15])^crc[14];
-	    counter <= counter + 1;
-	 end
-	 state <= nextState;
-      end
-      
+    always_comb begin
+        case(state)
+            WAIT: nextState = (dataReady) ? GO : WAIT;
+            GO: nextState = (counter == 8'd71) ? WAIT : GO;
+        endcase
+    end
+
+    always_ff @(posedge clk, negedge rst_L) begin
+        if(~rst_L) begin
+            state <= WAIT;
+            crc <= 0;
+            counter <= 0;
+        end
+        else begin
+            if(state == WAIT && nextState == GO) begin
+                dataReg <= data;
+                crc <= 0;
+                counter <= 0;
+            end
+            if(state == GO) begin
+                crc[0] <= (dataReg[counter]^crc[15]);
+                crc[1] <= crc[0];
+                crc[2] <= (dataReg[counter]^crc[15])^crc[1];
+                crc[14:3] <= crc[13:2];
+                crc[15] <= (dataReg[counter]^crc[15])^crc[14];
+                counter <= counter + 1;
+            end
+            state <= nextState;
+        end
+    end
+
 endmodule : crc16
 
 module bitStuff
     (input logic clk, rst_L, dataReady, okToSend,
-    input inputBusState,
-    output logic readyToReceive, outputReady,
-    output outputBusState);
+     input inputBusState,
+     output logic readyToReceive, outputReady,
+     output outputBusState);
 
     enum {J = 1, K = 0, SE0 = 2} inputBusState, outputBusState;
    
