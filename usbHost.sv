@@ -271,45 +271,35 @@ module crc16
 endmodule : crc16
 
 module bitStuff
-  (input logic clk, rst_L, dataReady, okToSend,
-   input inputBusState,
-   output logic readyToReceive, outputReady,
-   output outputBusState);
+    (input logic clk, rst_L, dataReady, okToSend,
+    input inputBusState,
+    output logic readyToReceive, outputReady,
+    output outputBusState);
 
-   enum {J = 1, K = 0, SE0 = 2} inputBusState, outputBusState;
+    enum {J = 1, K = 0, SE0 = 2} inputBusState, outputBusState;
    
-   logic [2:0] 	counter;
+    logic [2:0]	counter;
 
-   always_comb begin
-      readyToReceive = 1;
-      outputBusState = inputBusState;   
-      if(counter == 5) begin
-	 readyToReceive = 0;
-      end
-      else if(counter == 6) begin
-	 outputBusState = K;
-      end
-   end
-   
-   always_ff @(posedge clk, negedge rst_L) begin
-      if(~rst_L) begin
-	 counter <= 0;
-      end   
-      else begin
-	 if(inputBusState == J && dataReady) begin
-	    if(counter == 5) begin
-	       counter <= 0;
-	    end
-	    else begin
-	       counter <= counter + 1;
-	    end
-	 end
-	 else begin
-	    counter <= 0;
-	 end // else: !if(inputBusState == J && dataReady)
-      end // else: !if(~rst_L)
-   end // always_ff @
-   	
+    always_comb begin
+        outputBusState = (counter == 6) ? K : inputBusState;   
+        readyToReceive = !(counter == 5);
+    end
+
+    always_ff @(posedge clk, negedge rst_L) begin
+        if(~rst_L) begin
+            counter <= 0;
+        end   
+        else begin
+            if(counter == 6) begin
+                counter <= 0;
+            end
+            else if(dataReady) begin
+                if(inputBusState == J) counter <= counter + 1;
+                else counter <= 0;
+            end
+        end
+    end
+
 endmodule : bitStuff
 
 module nrzi
