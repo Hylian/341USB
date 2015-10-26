@@ -72,49 +72,44 @@ module encoder
         busState = J;
         pid = inputReg[3:0];
         case(state)
+            // WAIT: Stall until we receive a packet
             WAIT: begin
                 nextState = (dataReady) ? SYNC : WAIT;
             end
-            SYNC: begin //Sends 7 zeroes and a one
+            // SYNC: Send the sync byte (00000001)
+            SYNC: begin
                 if(counter == 8'd7) begin
                     nextState = DATA;
+                    busState = J;
                 end
                 else begin
                     nextState = SYNC;
                     busState = K;
                 end
             end
+            // DATA: Increment a counter to transmit the packet payload one bit at a time
             DATA: begin
                 busState = inputReg[index];
                 nextState = DATA;
                 case(pid)
                     OUT: begin
-                        if(index == 8'd18) begin
-                            nextState = CRC;
-                        end
+                        if(index == 8'd18) nextState = CRC;
                     end
                     IN: begin
-                        if(index == 8'd18) begin
-                            nextState = CRC;
-                        end
+                        if(index == 8'd18) nextState = CRC;
                     end
                     DATA0: begin
-                        if(index == 8'd71) begin
-                            nextState = CRC;
-                        end
+                        if(index == 8'd71) nextState = CRC;
                     end
                     ACK: begin
-                        if(index == 8'd7) begin
-                            nextState = EOP;
-                        end
+                        if(index == 8'd7) nextState = EOP;
                     end
                     NAK: begin
-                        if(index == 8'd7) begin
-                            nextState = EOP;
-                        end
+                        if(index == 8'd7) nextState = EOP;
                     end
-                endcase // case (pid)
-            end // case: DATA
+                endcase
+            end
+            // CRC: Output the CRC of the payload 
             CRC: begin
                 nextState = CRC;
                 busState = crcResult[counter];
@@ -125,6 +120,7 @@ module encoder
                     nextState = EOP;
                 end
             end
+            // EOP: Send EOP signal
             EOP: begin
                 if(counter = 8'd2) begin
                     busState = J;
