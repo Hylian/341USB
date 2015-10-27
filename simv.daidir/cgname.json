@@ -14,19 +14,14 @@
         "reYIK",
         "module"
     ],
-    "usbBusAnalyzer": [
-        "usbBusAnalyzer",
-        "BJAFw",
-        "module"
-    ],
-    "thumbDriveProtocolFSM": [
-        "thumbDriveProtocolFSM",
-        "be1uw",
-        "module"
-    ],
     "top": [
         "top",
         "Emx8S",
+        "module"
+    ],
+    "usbBusAnalyzer": [
+        "usbBusAnalyzer",
+        "BJAFw",
         "module"
     ],
     "test": [
@@ -37,6 +32,11 @@
     "usbHost": [
         "usbHost",
         "PICDr",
+        "module"
+    ],
+    "thumbDriveProtocolFSM": [
+        "thumbDriveProtocolFSM",
+        "be1uw",
         "module"
     ],
     "...MASTER...": [

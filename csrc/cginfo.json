@@ -1,4 +1,88 @@
 {
+    "PrevCompiledModules": {
+        "test": {
+            "x9Hvb_d": {
+                "archive": "archive.116/_prev_archive_1.a",
+                "bytes": 16095,
+                "mod": "test",
+                "mode": 4,
+                "out": "x9Hvb_d.o"
+            }
+        },
+        "usbHost": {
+            "PICDr_d": {
+                "archive": "archive.116/_141607_archive_1.a",
+                "bytes": 61594,
+                "mod": "usbHost",
+                "out": "PICDr_d.o",
+                "mode": 4
+            }
+        },
+        "usbBusAnalyzer": {
+            "BJAFw_d": {
+                "archive": "archive.116/_prev_archive_1.a",
+                "bytes": 78024,
+                "mod": "usbBusAnalyzer",
+                "mode": 4,
+                "out": "BJAFw_d.o"
+            }
+        },
+        "thumbDriveProtocolFSM": {
+            "be1uw_d": {
+                "archive": "archive.116/_prev_archive_1.a",
+                "bytes": 35374,
+                "mod": "thumbDriveProtocolFSM",
+                "mode": 4,
+                "out": "be1uw_d.o"
+            }
+        },
+        "std": {
+            "reYIK_d": {
+                "archive": "archive.116/_prev_archive_1.a",
+                "bytes": 34314,
+                "mod": "std",
+                "mode": 4,
+                "out": "reYIK_d.o"
+            }
+        },
+        "...MASTER...": {
+            "amcQw_d": {
+                "archive": "archive.116/_141607_archive_1.a",
+                "bytes": 7498,
+                "mod": "...MASTER...",
+                "out": "amcQw_d.o",
+                "mode": 4
+            }
+        },
+        "top": {
+            "Emx8S_d": {
+                "archive": "archive.116/_prev_archive_1.a",
+                "bytes": 234677,
+                "mod": "top",
+                "mode": 4,
+                "out": "Emx8S_d.o"
+            }
+        },
+        "usbWires": {
+            "DB80t_d": {
+                "archive": "archive.116/_prev_archive_1.a",
+                "bytes": 6226,
+                "mod": "usbWires",
+                "mode": 4,
+                "out": "DB80t_d.o"
+            }
+        },
+        "_vcs_unit__3341557132": {
+            "bW8vz_d": {
+                "archive": "archive.116/_prev_archive_1.a",
+                "bytes": 13498,
+                "mod": "_vcs_unit__3341557132",
+                "mode": 4,
+                "out": "bW8vz_d.o"
+            }
+        }
+    },
+    "MlibObjs": {},
     "NameTable": {
         "_vcs_unit__3341557132": [
             "_vcs_unit__3341557132",
@@ -15,19 +99,14 @@
             "reYIK",
             "module"
         ],
-        "usbBusAnalyzer": [
-            "usbBusAnalyzer",
-            "BJAFw",
-            "module"
-        ],
-        "thumbDriveProtocolFSM": [
-            "thumbDriveProtocolFSM",
-            "be1uw",
-            "module"
-        ],
         "top": [
             "top",
             "Emx8S",
+            "module"
+        ],
+        "usbBusAnalyzer": [
+            "usbBusAnalyzer",
+            "BJAFw",
             "module"
         ],
         "test": [
@@ -40,47 +119,45 @@
             "PICDr",
             "module"
         ],
+        "thumbDriveProtocolFSM": [
+            "thumbDriveProtocolFSM",
+            "be1uw",
+            "module"
+        ],
         "...MASTER...": [
             "SIM",
             "amcQw",
             "module"
         ]
     },
-    "CompileStrategy": "fullobj",
-    "CurCompileUdps": {},
-    "CompileProcesses": [
-        "cgproc.69996.json"
-    ],
-    "stat": {
-        "nMops": 26312
+    "SIMBData": {
+        "out": "amcQwB.o",
+        "bytes": 111438
     },
+    "CompileStrategy": "fullobj",
     "CurCompileModules": [
         "...MASTER...",
-        "_vcs_unit__3341557132",
-        "std",
-        "usbWires",
-        "top",
-        "usbBusAnalyzer",
-        "test",
-        "usbHost",
-        "thumbDriveProtocolFSM"
+        "usbHost"
     ],
+    "CurCompileUdps": {},
     "LVLData": [
         "SIM"
     ],
-    "SIMBData": {
-        "bytes": 102351,
-        "out": "amcQwB.o"
-    },
+    "CompileStatus": "Successful",
     "PEModules": [],
+    "stat": {
+        "nMops": 3970
+    },
+    "CompileProcesses": [
+        "cgproc.141607.json"
+    ],
     "Misc": {
+        "daidir_abs": "/afs/ece.cmu.edu/usr/edshin/Private/GitHub/341USB/simv.daidir",
         "cwd": "/afs/ece.cmu.edu/usr/edshin/Private/GitHub/341USB",
+        "archive_dir": "archive.116",
         "csrc": "csrc",
         "csrc_abs": "/afs/ece.cmu.edu/usr/edshin/Private/GitHub/341USB/csrc",
-        "default_output_dir": "csrc",
-        "daidir_abs": "/afs/ece.cmu.edu/usr/edshin/Private/GitHub/341USB/simv.daidir",
         "daidir": "simv.daidir",
-        "archive_dir": "archive.0"
-    },
-    "CompileStatus": "Successful"
+        "default_output_dir": "csrc"
+    }
 }
