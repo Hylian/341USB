@@ -1,9 +1,14 @@
 // Write your usb host here.  Do not modify the port list.
+
+typedef enum logic [1:0] {bus_J = 1, bus_K = 0, bus_SE0 = 2} busState;
+
 module usbHost
   (input logic clk, rst_L,
    usbWires wires);
    
   /* Tasks needed to be finished to run testbenches */
+  logic [87:0] packet;
+
 
   task prelabRequest();
   // sends an OUT packet with ADDR=5 and ENDP=4
@@ -29,15 +34,16 @@ module usbHost
 
   endtask: writeData
 
-  enum {J = 1, K = 0, SE0 = 2} enc_busState, bs_outputBusState, nrzi_outputBusState;
+  busState enc_busState, bs_outputBusState, nrzi_outputBusState;
 
   logic enc_dataReady, enc_okToSend;
+  logic bs_dataReady, bs_okToSend;
+  logic nrzi_dataReady;
+
   encoder enc0(clk, rst_L, enc_dataReady, enc_okToSend, packet, enc_busState, bs_dataReady);
 
-  logic bs_dataReady, bs_okToSend;
   bitStuff bs0(clk, rst_L, bs_dataReady, bs_okToSend, enc_busState, enc_okToSend, nrzi_dataReady, bs_outputBusState);
 
-  logic nrzi_dataReady;
   nrzi nrzi0(clk, rst_L, nrzi_dataReady, bs_outputBusState, nrzi_outputBusState);
 
 endmodule: usbHost
@@ -50,26 +56,25 @@ endmodule: usbHost
 module encoder
     (input logic clk, rst_L, dataReady, okToSend,
      input logic [87:0] packet,
-     output busState,
+     output busState outputBusState,
      output logic outputReady);
 
     logic [7:0] index; //Index counter
     logic [87:0] inputReg; //Holds our data
     logic [15:0] crc, crc16Result;
-    logic [7:0] count;
+    logic [7:0] counter;
     logic [4:0] crc5Result;
 	   
     enum {WAIT, SYNC, DATA, CRC, EOP} state, nextState;
-    enum {OUT = 4'b0001, IN = 4'b1001, DATA0 = 4'b0011,
-          ACK = 4'b0010, NAK = 4'b1010} pid;
-    enum {J = 1, K = 0, SE0 = 2} busState;
+    enum logic[3:0] {OUT = 4'b0001, IN = 4'b1001, DATA0 = 4'b0011,
+                     ACK = 4'b0010, NAK = 4'b1010} pid;
 
     crc5 a1(clk, rst_L, packet[18:8], dataReady, crc5Result);
     crc16 a2(clk, rst_L, packet[71:8], dataReady, crc16Result);
    
     always_comb begin
         crc = (pid == DATA0) ? crc16Result : crc5Result;
-        busState = J;
+        outputBusState = bus_J;
         pid = inputReg[3:0];
         case(state)
             // WAIT: Stall until we receive a packet
@@ -80,16 +85,16 @@ module encoder
             SYNC: begin
                 if(counter == 8'd7) begin
                     nextState = DATA;
-                    busState = J;
+                    outputBusState = bus_J;
                 end
                 else begin
                     nextState = SYNC;
-                    busState = K;
+                    outputBusState = bus_K;
                 end
             end
             // DATA: Increment a counter to transmit the packet payload one bit at a time
             DATA: begin
-                busState = inputReg[index];
+                outputBusState = inputReg[index];
                 nextState = DATA;
                 case(pid)
                     OUT: begin
@@ -111,27 +116,25 @@ module encoder
             end
             // CRC: Output the CRC of the payload 
             CRC: begin
-                nextState = CRC;
-                busState = crcResult[counter];
-                if((pid == OUT || pid == IN) && (counter == 8'd4)) begin
+                outputBusState = crc[counter];
+                if(((pid == OUT || pid == IN) && (counter == 8'd4)) ||
+                   (pid == DATA0 && counter == 8'd15)) begin
                     nextState = EOP;
                 end
-                else if(pid == DATA0 && counter == 8'd15) begin
-                    nextState = EOP;
-                end
+                else nextState = CRC;
             end
             // EOP: Send EOP signal
             EOP: begin
-                if(counter = 8'd2) begin
-                    busState = J;
+                if(counter == 8'd2) begin
+                    outputBusState = bus_J;
                     nextState = WAIT;
                 end
                 else begin
-                    busState = SE0;
+                    outputBusState = bus_SE0;
                     nextState = EOP;
                 end
-            end // case: EOP
-        endcase // case (state)
+            end
+        endcase
     end
 
     always_ff @(posedge clk, negedge rst_L) begin
@@ -267,12 +270,12 @@ module bitStuff
      output logic readyToReceive, outputReady,
      output outputBusState);
 
-    enum {J = 1, K = 0, SE0 = 2} inputBusState, outputBusState;
+    busState inputBusState, outputBusState;
    
     logic [2:0]	counter;
 
     always_comb begin
-        outputBusState = (counter == 6) ? K : inputBusState;   
+        outputBusState = (counter == 6) ? bus_K : inputBusState;   
         readyToReceive = !(counter == 5);
     end
 
@@ -285,7 +288,7 @@ module bitStuff
                 counter <= 0;
             end
             else if(dataReady) begin
-                if(inputBusState == J) counter <= counter + 1;
+                if(inputBusState == bus_J) counter <= counter + 1;
                 else counter <= 0;
             end
         end
@@ -298,16 +301,16 @@ module nrzi
      input inputBusState,
      output outputBusState);
 
-    enum {J = 1, K = 0, SE0 = 2} inputBusState, outputBusState;
+    busState inputBusState, outputBusState;
 
     always_ff @(posedge clk, negedge rst_L) begin
         if(~rst_L) begin
-            outputBusState <= J;
+            outputBusState <= bus_J;
         end
         else begin
             if(dataReady) begin
-                if(inputBusState == K) outputBusState <= (outputBusState == K) ? J : K;
-                else if(inputBusState == SE0) outputBusState <= SE0;
+                if(inputBusState == bus_K) outputBusState <= (outputBusState == bus_K) ? bus_J : bus_K;
+                else if(inputBusState == bus_SE0) outputBusState <= bus_SE0;
                 else outputBusState <= inputBusState;
             end
         end

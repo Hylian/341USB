@@ -1,0 +1,86 @@
+{
+    "NameTable": {
+        "_vcs_unit__3341557132": [
+            "_vcs_unit__3341557132",
+            "bW8vz",
+            "module"
+        ],
+        "usbWires": [
+            "usbWires",
+            "DB80t",
+            "module"
+        ],
+        "std": [
+            "std",
+            "reYIK",
+            "module"
+        ],
+        "usbBusAnalyzer": [
+            "usbBusAnalyzer",
+            "BJAFw",
+            "module"
+        ],
+        "thumbDriveProtocolFSM": [
+            "thumbDriveProtocolFSM",
+            "be1uw",
+            "module"
+        ],
+        "top": [
+            "top",
+            "Emx8S",
+            "module"
+        ],
+        "test": [
+            "test",
+            "x9Hvb",
+            "module"
+        ],
+        "usbHost": [
+            "usbHost",
+            "PICDr",
+            "module"
+        ],
+        "...MASTER...": [
+            "SIM",
+            "amcQw",
+            "module"
+        ]
+    },
+    "CompileStrategy": "fullobj",
+    "CurCompileUdps": {},
+    "CompileProcesses": [
+        "cgproc.69996.json"
+    ],
+    "stat": {
+        "nMops": 26312
+    },
+    "CurCompileModules": [
+        "...MASTER...",
+        "_vcs_unit__3341557132",
+        "std",
+        "usbWires",
+        "top",
+        "usbBusAnalyzer",
+        "test",
+        "usbHost",
+        "thumbDriveProtocolFSM"
+    ],
+    "LVLData": [
+        "SIM"
+    ],
+    "SIMBData": {
+        "bytes": 102351,
+        "out": "amcQwB.o"
+    },
+    "PEModules": [],
+    "Misc": {
+        "cwd": "/afs/ece.cmu.edu/usr/edshin/Private/GitHub/341USB",
+        "csrc": "csrc",
+        "csrc_abs": "/afs/ece.cmu.edu/usr/edshin/Private/GitHub/341USB/csrc",
+        "default_output_dir": "csrc",
+        "daidir_abs": "/afs/ece.cmu.edu/usr/edshin/Private/GitHub/341USB/simv.daidir",
+        "daidir": "simv.daidir",
+        "archive_dir": "archive.0"
+    },
+    "CompileStatus": "Successful"
+}
