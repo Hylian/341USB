@@ -3,60 +3,60 @@
 typedef enum logic [1:0] {bus_J = 1, bus_K = 0, bus_SE0 = 2} busState;
 
 module usbHost
-  (input logic clk, rst_L,
-   usbWires wires);
+    (input logic clk, rst_L,
+    usbWires wires);
    
-  /* Tasks needed to be finished to run testbenches */
-  logic [87:0] packet;
+    /* Tasks needed to be finished to run testbenches */
+    logic [87:0] packet;
 
-  busState enc_busState, bs_outputBusState, nrzi_outputBusState;
+    busState enc_busState, bs_outputBusState, nrzi_outputBusState;
 
-  logic enc_dataReady, enc_okToSend;
-  logic bs_dataReady, bs_stuffEnable;
-  logic nrzi_dataReady, nrzi_outputValid;
+    logic enc_dataReady, enc_okToSend;
+    logic bs_dataReady, bs_stuffEnable;
+    logic nrzi_dataReady, nrzi_outputValid;
 
 
-  assign wires.DP = nrzi_outputValid ? (nrzi_outputBusState == bus_J) : 1'bz;
-  assign wires.DM = nrzi_outputValid ? (nrzi_outputBusState == bus_K) : 1'bz;
+    assign wires.DP = nrzi_outputValid ? (nrzi_outputBusState == bus_J) : 1'bz;
+    assign wires.DM = nrzi_outputValid ? (nrzi_outputBusState == bus_K) : 1'bz;
 
-  task prelabRequest();
-  // sends an OUT packet with ADDR=5 and ENDP=4
-  // packet should have SYNC and EOP too
-    //$monitor("clk(%x) enc.state(%s) enc.index(%d) enc.pid(%s) enc_busState(%s) bs_dataReady(%x) enc_okToSend(%x) nrzi_outputBusState(%s)", clk, enc0.state, enc0.index,  enc0.pid, enc_busState, bs_dataReady, enc_okToSend, nrzi_outputBusState);
-    //$monitor("clk(%x) bs.counter(%d) bs_dataReady(%x) enc_okToSend(%x) nrzi_dataReady(%x) enc_busState(%x) bs_outputBusState(%x) nrzi_outputBusState(%s)", clk, bs0.counter, bs_dataReady, enc_okToSend, nrzi_dataReady, enc_busState, bs_outputBusState, nrzi_outputBusState);
-    //$monitor("clk(%x) nrzi_dataReady(%x) nrzi_outputBusState(%s) nrzi_outputValid(%x) DP(%x) DM(%x)", clk, nrzi_dataReady, nrzi_outputBusState, nrzi_outputValid, wires.DP, wires.DM);
-    //$monitor("crc5.state(%s) crc.counter(%d) crc5.dataReg(%b) crc5.crc(%b) crc5.crc0_next(%b) crc5.crc2_next(%b)", enc0.a1.state, enc0.a1.counter, enc0.a1.dataReg, enc0.a1.crc, enc0.a1.crc0_next, enc0.a1.crc2_next);
-    packet <= {4'd4,7'd5,~4'd1,4'd1};
-    enc_dataReady <= 0;
-    #10 @(posedge clk) enc_dataReady <= 1;
-    @(posedge clk) enc_dataReady <= 0;
-    repeat(100)@(posedge clk) packet = 0;
+    // sends an OUT packet with ADDR=5 and ENDP=4
+    // packet should have SYNC and EOP too
+    task prelabRequest();
+        //$monitor("clk(%x) enc.state(%s) enc.index(%d) enc.pid(%s) enc_busState(%s) bs_dataReady(%x) enc_okToSend(%x) nrzi_outputBusState(%s)", clk, enc0.state, enc0.index,  enc0.pid, enc_busState, bs_dataReady, enc_okToSend, nrzi_outputBusState);
+        //$monitor("clk(%x) bs.counter(%d) bs_dataReady(%x) enc_okToSend(%x) nrzi_dataReady(%x) enc_busState(%x) bs_outputBusState(%x) nrzi_outputBusState(%s)", clk, bs0.counter, bs_dataReady, enc_okToSend, nrzi_dataReady, enc_busState, bs_outputBusState, nrzi_outputBusState);
+        //$monitor("clk(%x) nrzi_dataReady(%x) nrzi_outputBusState(%s) nrzi_outputValid(%x) DP(%x) DM(%x)", clk, nrzi_dataReady, nrzi_outputBusState, nrzi_outputValid, wires.DP, wires.DM);
+        //$monitor("crc5.state(%s) crc.counter(%d) crc5.dataReg(%b) crc5.crc(%b) crc5.crc0_next(%b) crc5.crc2_next(%b)", enc0.a1.state, enc0.a1.counter, enc0.a1.dataReg, enc0.a1.crc, enc0.a1.crc0_next, enc0.a1.crc2_next);
+        packet <= {4'd4,7'd5,~4'd1,4'd1};
+        enc_dataReady <= 0;
+        #10 @(posedge clk) enc_dataReady <= 1;
+        @(posedge clk) enc_dataReady <= 0;
+        repeat(100)@(posedge clk) packet = 0;
 
-  endtask: prelabRequest
+    endtask: prelabRequest
 
-  task readData
-  // host sends memPage to thumb drive and then gets data back from it
-  // then returns data and status to the caller
-  (input  bit [15:0] mempage, // Page to write
-   output bit [63:0] data, // array of bytes to write
-   output bit        success);
+    // host sends memPage to thumb drive and then gets data back from it
+    // then returns data and status to the caller
+    task readData
+    (input  bit [15:0] mempage, // Page to write
+     output bit [63:0] data, // array of bytes to write
+     output bit        success);
 
-  endtask: readData
+    endtask: readData
 
-  task writeData
-  // Host sends memPage to thumb drive and then sends data
-  // then returns status to the caller
-  (input  bit [15:0] mempage, // Page to write
-   input  bit [63:0] data, // array of bytes to write
-   output bit        success);
+    // Host sends memPage to thumb drive and then sends data
+    // then returns status to the caller
+    task writeData
+    (input  bit [15:0] mempage, // Page to write
+     input  bit [63:0] data, // array of bytes to write
+     output bit        success);
 
-  endtask: writeData
+    endtask: writeData
 
-  encoder enc0(clk, rst_L, enc_dataReady, enc_okToSend, packet, enc_busState, bs_dataReady, bs_stuffEnable);
+    encoder enc0(clk, rst_L, enc_dataReady, enc_okToSend, packet, enc_busState, bs_dataReady, bs_stuffEnable);
 
-  bitStuff bs0(clk, rst_L, bs_dataReady, bs_stuffEnable, enc_busState, enc_okToSend, nrzi_dataReady, bs_outputBusState);
+    bitStuff bs0(clk, rst_L, bs_dataReady, bs_stuffEnable, enc_busState, enc_okToSend, nrzi_dataReady, bs_outputBusState);
 
-  nrzi nrzi0(clk, rst_L, nrzi_dataReady, bs_outputBusState, nrzi_outputValid, nrzi_outputBusState);
+    nrzi nrzi0(clk, rst_L, nrzi_dataReady, bs_outputBusState, nrzi_outputValid, nrzi_outputBusState);
 
 endmodule: usbHost
 
