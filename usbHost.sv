@@ -6,34 +6,30 @@ module usbHost
     (input logic clk, rst_L,
     usbWires wires);
    
-  /* Tasks needed to be finished to run testbenches */
-  logic [87:0] packet, dnc_packet; //This accounts for the largest packet size
+    /* Tasks needed to be finished to run testbenches */
+    logic [87:0] packet, dnc_packet; //This accounts for the largest packet size
   
-  busState enc_busState, bs_outputBusState, nrzi_outputBusState;
-  busState dnc_busState, nrdec_outputBusState, nrdec_inputBusState;
+    busState enc_busState, bs_outputBusState, nrzi_outputBusState;
+    busState dnc_busState, nrdec_outputBusState, nrdec_inputBusState;
    
-  logic enc_dataReady, enc_okToSend;
-  logic bs_dataReady, bs_stuffEnable;
-  logic nrzi_dataReady, nrzi_outputValid;
+    logic enc_dataReady, enc_okToSend;
+    logic bs_dataReady, bs_stuffEnable;
+    logic nrzi_dataReady, nrzi_outputValid;
   
-  logic nrdec_dataReady;
+    logic nrdec_dataReady;
 
-  //The following is for testing
-  assign nrdec_dataReady = nrzi_outputValid;
-  assign nrdec_inputBusState = nrzi_outputBusState;
+    //The following is for testing
+    assign nrdec_dataReady = ~nrzi_outputValid;
+    //assign nrdec_inputBusState = nrzi_outputBusState;
 
-  assign wires.DP = nrzi_outputValid ? (nrzi_outputBusState == bus_J) : 1'bz;
-  assign wires.DM = nrzi_outputValid ? (nrzi_outputBusState == bus_K) : 1'bz;
+    assign wires.DP = nrzi_outputValid ? (nrzi_outputBusState == bus_J) : 1'bz;
+    assign wires.DM = nrzi_outputValid ? (nrzi_outputBusState == bus_K) : 1'bz;
 
-  task prelabRequest();
-  // sends an OUT packet with ADDR=5 and ENDP=4
-  // packet should have SYNC and EOP too <-
-    //$monitor("clk(%x) enc.state(%s) enc.index(%d) enc.pid(%s) enc_busState(%s) bs_dataReady(%x) enc_okToSend(%x) nrzi_outputBusState(%s)", clk, enc0.state, enc0.index,  enc0.pid, enc_busState, bs_dataReady, enc_okToSend, nrzi_outputBusState);
-    //$monitor("clk(%x) bs.counter(%d) bs_dataReady(%x) enc_okToSend(%x) nrzi_dataReady(%x) enc_busState(%x) bs_outputBusState(%x) nrzi_outputBusState(%s)", clk, bs0.counter, bs_dataReady, enc_okToSend, nrzi_dataReady, enc_busState, bs_outputBusState, nrzi_outputBusState);
-    //$monitor("clk(%x) nrzi_dataReady(%x) nrzi_outputBusState(%s) nrzi_outputValid(%x) DP(%x) DM(%x)", clk, nrzi_dataReady, nrzi_outputBusState, nrzi_outputValid, wires.DP, wires.DM);
-    //$monitor("crc5.state(%s) crc.counter(%d) crc5.dataReg(%b) crc5.crc(%b) crc5.crc0_next(%b) crc5.crc2_next(%b)", enc0.a1.state, enc0.a1.counter, enc0.a1.dataReg, enc0.a1.crc, enc0.a1.crc0_next, enc0.a1.crc2_next);
-    $monitor("packet = %b \n input = %b \n nrdecIn = %s, nrdecOut = %s, decoderIn = %s, dncState = %s",
-             packet, dnc_packet, nrdec_inputBusState, nrdec_outputBusState, dnc_busState, dnc0.state);
+    assign wires.DP = nrzi_outputValid ? 1'bz : (nrdec_inputBusState == bus_J);
+    assign wires.DM = nrzi_outputValid ? 1'bz : (nrdec_inputBusState == bus_K);
+
+    task prelabRequest();
+    // sends an OUT packet with ADDR=5 and ENDP=4
      
     packet <= {4'd4,7'd5,~4'd1,4'd1};
     enc_dataReady <= 0;
@@ -61,17 +57,23 @@ module usbHost
 
     endtask: writeData
 
-    encoder enc0(clk, rst_L, enc_dataReady, enc_okToSend, packet, enc_busState, bs_dataReady, bs_stuffEnable);
+    encoder enc0(clk, rst_L, enc_dataReady, enc_okToSend, packet, 
+                 enc_busState, bs_dataReady, bs_stuffEnable);
 
-    bitStuff bs0(clk, rst_L, bs_dataReady, bs_stuffEnable, enc_busState, enc_okToSend, nrzi_dataReady, bs_outputBusState);
+    bitStuff bs0(clk, rst_L, bs_dataReady, bs_stuffEnable, enc_busState, 
+                 enc_okToSend, nrzi_dataReady, bs_outputBusState);
 
-    nrziEncode nrzi0(clk, rst_L, nrzi_dataReady, bs_outputBusState, nrzi_outputValid, nrzi_outputBusState);
+    nrziEncode nrzi0(clk, rst_L, nrzi_dataReady, bs_outputBusState, 
+                     nrzi_outputValid, nrzi_outputBusState);
   
-    decoder dnc0(clk, rst_L, bu_outputReady, dnc_packet, dnc_busState, dnc_dataReady, bu_unstuffEnable);
+    decoder dnc0(clk, rst_L, bu_outputReady, dnc_packet, dnc_busState, 
+                 dnc_dataReady, bu_unstuffEnable);
 
-    bitUnstuff bu0(clk, rst_L, nrdec_outputValid, bu_unstuffEnable, nrdec_outputBusState, bu_outputReady, dnc_busState);
+    bitUnstuff bu0(clk, rst_L, nrdec_outputValid, bu_unstuffEnable, 
+                   nrdec_outputBusState, bu_outputReady, dnc_busState);
    
-    nrziDecode nrdec0(clk, rst_L, nrdec_dataReady, nrdec_inputBusState, nrdec_outputValid, nrdec_outputBusState);
+    nrziDecode nrdec0(clk, rst_L, nrdec_dataReady, nrdec_inputBusState, 
+                      nrdec_outputValid, nrdec_outputBusState);
    
 endmodule: usbHost
 
@@ -122,7 +124,7 @@ module encoder
                     outputBusState = bus_K;
                 end
             end
-            // DATA: Increment a counter to transmit the packet payload one bit at a time
+// DATA: Increment a counter to transmit the packet payload one bit at a time
             DATA: begin
                 outputBusState = busState'(inputReg[index]);
                 stuffEnable = index >= 8;
@@ -326,7 +328,8 @@ module bitStuff
                 counter <= 0;
             end
             else if(dataReady) begin
-                if(stuffEnable && inputBusState == bus_J) counter <= counter + 1;
+                if(stuffEnable && inputBusState == bus_J) 
+		    counter <= counter + 1;
                 else counter <= 0;
             end
         end
@@ -349,7 +352,8 @@ module nrziEncode
             if(dataReady) begin
                 outputValid <= 1;
                 if(outputBusState == bus_SE0) outputBusState <= inputBusState;
-                else if(inputBusState == bus_K) outputBusState <= (outputBusState == bus_K) ? bus_J : bus_K;
+                else if(inputBusState == bus_K) 
+		    outputBusState <= (outputBusState == bus_K) ? bus_J : bus_K;
                 else if(inputBusState == bus_SE0) outputBusState <= bus_SE0;
             end
             else outputValid <= 0;
@@ -381,12 +385,12 @@ module bitUnstuff
                 counter <= 0;
             end
             else if(dataReady) begin
-                if(unstuffEnable && inputBusState == bus_J) counter <= counter + 1;
+                if(unstuffEnable && inputBusState == bus_J) 
+		    counter <= counter + 1;
                 else counter <= 0;
             end
         end
     end
-
 endmodule : bitUnstuff
 
 module nrziDecode
@@ -426,28 +430,19 @@ module decoder
 
     logic [7:0] index; //Index counter
     logic [87:0] outputReg; //Holds our data
-    //logic [15:0] crc, crc16Result;
     logic [7:0] counter;
-    //logic [4:0] crc5Result;
 	   
     enum {WAIT, SYNC, PID, DATA, CRC, EOP} state, nextState;
     typedef enum logic[3:0] {OUT = 4'b0001, IN = 4'b1001, DATA0 = 4'b0011,
                      ACK = 4'b0010, NAK = 4'b1010} pidValue;
     pidValue pid;
 
-    //First we wait to see if we should recieve data by monitoring the inputBusState
-    //for the Sync
+    //First we wait to see if we should recieve data by monitoring the
+    //inputBusState for the Sync
    
-  
     assign packet = outputReg;
-   
-
-     
-  //  crc5 a1(clk, rst_L, outputReg[18:8], dataReady, crc5Result);
-  //  crc16 a2(clk, rst_L, outputReg[71:8], dataReady, crc16Result);
-   
+      
     always_comb begin
-        //crc = (pid == DATA0) ? ~crc16Result : ~crc5Result;
         pid = pidValue'(outputReg[3:0]); 
         unstuffEnable = 0;
         case(state)
@@ -519,7 +514,9 @@ module decoder
                 if(nextState == DATA) begin
                     counter <= 0;
 		    outputReg <= 0;
-		    outputReady <= 0; //Currently the output is still the old packet which is valid until the sync
+		    outputReady <= 0; 
+		    //Currently the output is still the old packet 
+		    // which is valid until the sync
 		end
 	        //Then we wait until we see a stream of at least 7 zeros
 	        else if(inputBusState == bus_K && counter != 8'd7) begin
@@ -535,7 +532,8 @@ module decoder
 		end
             end
             if(state == DATA && dataReady) begin
-	        //We need to assign data to the inputReg by converting the state into a 1 or 0
+	        //We need to assign data to the inputReg 
+	        // by converting the state into a 1 or 0
 	        if(inputBusState == bus_J) begin
 		    outputReg[index] <= 1;
 		end
@@ -545,11 +543,28 @@ module decoder
 	        index <= index + 1;
 	        
                 if(nextState == CRC) begin
-                    if(pid == DATA0) counter = 15;
-                    else counter = 4;
+                    if(pid == DATA0) begin
+		        counter <= 15;
+		        index <= index + 16;
+		    end
+                    else begin
+		        counter <= 4;
+		        index <= index + 5;
+		    end
                 end
             end
             if(state == CRC) begin
+	        //We need to assign data to the inputReg 
+	        // by converting the state into a 1 or 0
+	        //However, the crc is inverted and in MSB 
+	        // so we need to go from left to right
+	        //and invert it
+	        if(inputBusState == bus_J) begin
+		    outputReg[index - counter] <= 0;
+		end
+		else begin
+		    outputReg[index - counter] <= 1;
+		end
                 counter <= counter - 1;
             end
             if(nextState == EOP) begin
