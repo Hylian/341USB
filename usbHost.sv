@@ -6,7 +6,6 @@ module usbHost
     (input logic clk, rst_L,
     usbWires wires);
    
-<<<<<<< HEAD
   /* Tasks needed to be finished to run testbenches */
   logic [87:0] packet, dnc_packet; //This accounts for the largest packet size
   
@@ -18,23 +17,11 @@ module usbHost
   logic nrzi_dataReady, nrzi_outputValid;
   
   logic nrdec_dataReady;
-=======
-    /* Tasks needed to be finished to run testbenches */
-    logic [87:0] packet;
-
-    busState enc_busState, bs_outputBusState, nrzi_outputBusState;
-
-    logic enc_dataReady, enc_okToSend;
-    logic bs_dataReady, bs_stuffEnable;
-    logic nrzi_dataReady, nrzi_outputValid;
->>>>>>> eaf37ff80cbf89a5647668efb7f3aa7e951b981d
 
   //The following is for testing
   assign nrdec_dataReady = nrzi_outputValid;
   assign nrdec_inputBusState = nrzi_outputBusState;
 
-<<<<<<< HEAD
-  
   assign wires.DP = nrzi_outputValid ? (nrzi_outputBusState == bus_J) : 1'bz;
   assign wires.DM = nrzi_outputValid ? (nrzi_outputBusState == bus_K) : 1'bz;
 
@@ -45,31 +32,14 @@ module usbHost
     //$monitor("clk(%x) bs.counter(%d) bs_dataReady(%x) enc_okToSend(%x) nrzi_dataReady(%x) enc_busState(%x) bs_outputBusState(%x) nrzi_outputBusState(%s)", clk, bs0.counter, bs_dataReady, enc_okToSend, nrzi_dataReady, enc_busState, bs_outputBusState, nrzi_outputBusState);
     //$monitor("clk(%x) nrzi_dataReady(%x) nrzi_outputBusState(%s) nrzi_outputValid(%x) DP(%x) DM(%x)", clk, nrzi_dataReady, nrzi_outputBusState, nrzi_outputValid, wires.DP, wires.DM);
     //$monitor("crc5.state(%s) crc.counter(%d) crc5.dataReg(%b) crc5.crc(%b) crc5.crc0_next(%b) crc5.crc2_next(%b)", enc0.a1.state, enc0.a1.counter, enc0.a1.dataReg, enc0.a1.crc, enc0.a1.crc0_next, enc0.a1.crc2_next);
-     $monitor("packet = %b \n input = %b \n nrdecIn = %s, nrdecOut = %s, decoderIn = %s, dncState = %s",
-	      packet, dnc_packet, nrdec_inputBusState, nrdec_outputBusState, dnc_busState, dnc0.state);
+    $monitor("packet = %b \n input = %b \n nrdecIn = %s, nrdecOut = %s, decoderIn = %s, dncState = %s",
+             packet, dnc_packet, nrdec_inputBusState, nrdec_outputBusState, dnc_busState, dnc0.state);
      
     packet <= {4'd4,7'd5,~4'd1,4'd1};
     enc_dataReady <= 0;
     #10 @(posedge clk) enc_dataReady <= 1;
     @(posedge clk) enc_dataReady <= 0;
     repeat(100)@(posedge clk) packet = 0;
-=======
-    assign wires.DP = nrzi_outputValid ? (nrzi_outputBusState == bus_J) : 1'bz;
-    assign wires.DM = nrzi_outputValid ? (nrzi_outputBusState == bus_K) : 1'bz;
-
-    // sends an OUT packet with ADDR=5 and ENDP=4
-    // packet should have SYNC and EOP too
-    task prelabRequest();
-        //$monitor("clk(%x) enc.state(%s) enc.index(%d) enc.pid(%s) enc_busState(%s) bs_dataReady(%x) enc_okToSend(%x) nrzi_outputBusState(%s)", clk, enc0.state, enc0.index,  enc0.pid, enc_busState, bs_dataReady, enc_okToSend, nrzi_outputBusState);
-        //$monitor("clk(%x) bs.counter(%d) bs_dataReady(%x) enc_okToSend(%x) nrzi_dataReady(%x) enc_busState(%x) bs_outputBusState(%x) nrzi_outputBusState(%s)", clk, bs0.counter, bs_dataReady, enc_okToSend, nrzi_dataReady, enc_busState, bs_outputBusState, nrzi_outputBusState);
-        //$monitor("clk(%x) nrzi_dataReady(%x) nrzi_outputBusState(%s) nrzi_outputValid(%x) DP(%x) DM(%x)", clk, nrzi_dataReady, nrzi_outputBusState, nrzi_outputValid, wires.DP, wires.DM);
-        //$monitor("crc5.state(%s) crc.counter(%d) crc5.dataReg(%b) crc5.crc(%b) crc5.crc0_next(%b) crc5.crc2_next(%b)", enc0.a1.state, enc0.a1.counter, enc0.a1.dataReg, enc0.a1.crc, enc0.a1.crc0_next, enc0.a1.crc2_next);
-        packet <= {4'd4,7'd5,~4'd1,4'd1};
-        enc_dataReady <= 0;
-        #10 @(posedge clk) enc_dataReady <= 1;
-        @(posedge clk) enc_dataReady <= 0;
-        repeat(100)@(posedge clk) packet = 0;
->>>>>>> eaf37ff80cbf89a5647668efb7f3aa7e951b981d
 
     endtask: prelabRequest
 
@@ -95,18 +65,13 @@ module usbHost
 
     bitStuff bs0(clk, rst_L, bs_dataReady, bs_stuffEnable, enc_busState, enc_okToSend, nrzi_dataReady, bs_outputBusState);
 
-<<<<<<< HEAD
-  nrziEncode nrzi0(clk, rst_L, nrzi_dataReady, bs_outputBusState, nrzi_outputValid, nrzi_outputBusState);
-=======
-    nrzi nrzi0(clk, rst_L, nrzi_dataReady, bs_outputBusState, nrzi_outputValid, nrzi_outputBusState);
->>>>>>> eaf37ff80cbf89a5647668efb7f3aa7e951b981d
-
+    nrziEncode nrzi0(clk, rst_L, nrzi_dataReady, bs_outputBusState, nrzi_outputValid, nrzi_outputBusState);
   
-   decoder dnc0(clk, rst_L, bu_outputReady, dnc_packet, dnc_busState, dnc_dataReady, bu_unstuffEnable);
+    decoder dnc0(clk, rst_L, bu_outputReady, dnc_packet, dnc_busState, dnc_dataReady, bu_unstuffEnable);
 
-   bitUnstuff bu0(clk, rst_L, nrdec_outputValid, bu_unstuffEnable, nrdec_outputBusState, bu_outputReady, dnc_busState);
+    bitUnstuff bu0(clk, rst_L, nrdec_outputValid, bu_unstuffEnable, nrdec_outputBusState, bu_outputReady, dnc_busState);
    
-   nrziDecode nrdec0(clk, rst_L, nrdec_dataReady, nrdec_inputBusState, nrdec_outputValid, nrdec_outputBusState);
+    nrziDecode nrdec0(clk, rst_L, nrdec_dataReady, nrdec_inputBusState, nrdec_outputValid, nrdec_outputBusState);
    
 endmodule: usbHost
 
