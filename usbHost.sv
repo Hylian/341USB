@@ -18,6 +18,17 @@ module usbHost
   
   logic nrdec_dataReady;
 
+  logic start_t, txType_t, done_t, txType_p, start_p, done_p;
+  logic [15:0] memAddrIn_t;
+  logic [63:0] dataIn_t;
+  logic [63:0] dataOut_t;
+  logic [3:0] endpoint_p;
+  logic [63:0] dataIn_p;
+  logic [63:0] dataOut_p;
+  logic error;
+    
+
+
   //The following is for testing
   assign nrdec_dataReady = nrzi_outputValid;
   assign nrdec_inputBusState = nrzi_outputBusState;
@@ -49,6 +60,17 @@ module usbHost
     (input  bit [15:0] mempage, // Page to write
      output bit [63:0] data, // array of bytes to write
      output bit        success);
+        $monitor("rw0.state(%s), p0.state(%s) enc0.state(%s)", rw0.state, p0.state, enc0.state);
+        memAddrIn_t <= mempage;
+        txType_t <= 1;
+        start_t <= 1;
+
+
+        wait(done_t);
+
+        start_t <= 0;
+        data <= dataOut_t;
+        success <= !error;
 
     endtask: readData
 
@@ -58,10 +80,20 @@ module usbHost
     (input  bit [15:0] mempage, // Page to write
      input  bit [63:0] data, // array of bytes to write
      output bit        success);
+        $monitor("rw0.state(%s), p0.state(%s) enc0.state(%s)", rw0.state, p0.state, enc0.state);
+        memAddrIn_t <= mempage;
+        txType_t <= 1;
+        start_t <= 1;
+        dataIn_t <= data;
+
+        wait(done_t);
+
+        start_t <= 0;
+        success <= !error;
 
     endtask: writeData
 
-    encoder enc0(clk, rst_L, enc_dataReady, enc_okToSend, packet, enc_busState, bs_dataReady, bs_stuffEnable);
+    encoder enc0(clk, rst_L, enc_dataReady, enc_okToSend, packet, enc_busState, bs_dataReady, bs_stuffEnable, enc_readyToReceive);
 
     bitStuff bs0(clk, rst_L, bs_dataReady, bs_stuffEnable, enc_busState, enc_okToSend, nrzi_dataReady, bs_outputBusState);
 
@@ -72,8 +104,261 @@ module usbHost
     bitUnstuff bu0(clk, rst_L, nrdec_outputValid, bu_unstuffEnable, nrdec_outputBusState, bu_outputReady, dnc_busState);
    
     nrziDecode nrdec0(clk, rst_L, nrdec_dataReady, nrdec_inputBusState, nrdec_outputValid, nrdec_outputBusState);
-   
+
+    readwrite rw0(clk, rst_L, start_t, txType_t,
+                 memAddrIn_t,
+                 dataIn_t,
+                 dataOut_t,
+                 done_t,
+                 txType_p, start_p,
+                 endpoint_p,
+                 dataIn_p,
+                 dataOut_p,
+                 done_p);
+    
+    protocol p0(clk, rst_L, txType_p, start_p, enc_readyToReceive, dnc_dataReady,
+                    done_p, error, enc_dataReady, endpoint_p, dataOut_p,
+                    dataIn_p, packet, dnc_packet);
+
+
 endmodule: usbHost
+
+module readwrite(input logic clk, rst_L, start_t, txType_t,
+                 input logic [15:0] memAddrIn_t,
+                 input logic [63:0] dataIn_t,
+                 output logic [63:0] dataOut_t,
+                 output logic done_t,
+                 output logic txType_p, start_p,
+                 output logic [3:0] endpoint_p,
+                 input logic [63:0] dataIn_p,
+                 output logic [63:0] dataOut_p,
+                 input logic done_p);
+    
+    //_t : talks to task
+    //_p : talks to protocol
+    //txtype 0 means output
+
+    enum {WAIT, OUT_ADDR_READ, OUT_ADDR_READ_DONE, IN_DATA_READ, IN_DATA_READ_DONE, OUT_ADDR_WRITE, OUT_ADDR_WRITE_DONE, OUT_DATA_WRITE, OUT_DATA_WRITE_DONE, DONE} state, nextState;
+
+    logic [15:0] memAddrIn_t_reg;
+    logic [63:0] dataIn_t_reg;
+
+    always_comb begin
+        nextState = state;
+        done_t = 0;
+        start_p = 0;
+
+        case(state)
+            WAIT: begin 
+                if(start_t) begin
+                    if(txType_t) nextState = OUT_ADDR_READ;
+                    else nextState = OUT_ADDR_WRITE;
+                end
+            end
+            OUT_ADDR_READ: begin 
+                nextState = OUT_ADDR_READ_DONE;
+                txType_p = 0;
+                dataOut_p = memAddrIn_t_reg;
+                endpoint_p = 4;
+                start_p = 1;
+            end
+            OUT_ADDR_READ_DONE: begin 
+                if(done_p) nextState = IN_DATA_READ;
+            end
+            IN_DATA_READ: begin 
+                nextState = IN_DATA_READ_DONE;
+                txType_p = 1;
+                endpoint_p = 8;
+                start_p = 1;
+            end
+            IN_DATA_READ_DONE: begin 
+                if(done_p) nextState = DONE;
+            end
+            OUT_ADDR_WRITE: begin 
+                nextState = OUT_ADDR_WRITE_DONE;
+                txType_p = 0;
+                dataOut_p = memAddrIn_t_reg;
+                endpoint_p = 4;
+                start_p = 1;
+            end
+            OUT_ADDR_WRITE_DONE: begin
+                if(done_p) nextState = OUT_DATA_WRITE;
+            end
+            OUT_DATA_WRITE: begin 
+                nextState = OUT_DATA_WRITE_DONE;
+                txType_p = 0;
+                dataOut_p = dataIn_t;
+                endpoint_p = 8;
+                start_p = 1;
+            end
+            OUT_DATA_WRITE_DONE: begin
+                if(done_p) nextState = DONE;
+            end
+            DONE: begin
+                done_t = 1;
+                nextState = WAIT;
+            end
+        endcase
+    end
+
+    always_ff @(posedge clk, negedge rst_L) begin
+        if(~rst_L) begin
+            state <= WAIT;
+            memAddrIn_t_reg <= 0;
+            dataIn_t_reg <= 0;
+        end
+        else begin
+            case(state)
+                WAIT: begin
+                    memAddrIn_t_reg <= memAddrIn_t;
+                    dataIn_t_reg <= dataIn_t;
+                end
+                IN_DATA_READ_DONE: begin
+                    if(done_p) dataOut_t <= dataIn_p;
+                end
+            endcase
+
+            state <= nextState;
+        end
+    end
+
+
+endmodule: readwrite
+
+    
+module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
+                output logic readyToReceive_rw, error, start_enc,
+                input logic [3:0] endpoint_p,
+                input logic [63:0] dataIn_rw,
+                output logic [63:0] dataOut_rw,
+                output logic [87:0] packetOut_enc,
+                input logic [87:0] packetIn_dec);
+
+    enum {WAIT, TOKEN_IN, DATA_IN, CRC_IN, NAK_IN, ACK_IN, TOKEN_OUT, DATA_OUT, NAK_OUT, ACK_OUT} state, nextState;
+
+    typedef enum logic[3:0] {OUT = 4'b0001, IN = 4'b1001, DATA0 = 4'b0011,
+                             ACK = 4'b0010, NAK = 4'b1010} pidValue;
+
+    logic [7:0] crcCounter, timeoutCounter, errorCounter;
+    logic startCRC, crcValid;
+    logic [15:0] crc, crc16Result;
+    logic [4:0] crc5Result;
+    logic [87:0] lastPacketIn;
+    pidValue pid;
+
+    crc5 a1(clk, rst_L, lastPacketIn[18:8], startCRC, crc5Result);
+    crc16 a2(clk, rst_L, lastPacketIn[71:8], startCRC, crc16Result);
+
+    always_comb begin
+        pid = pidValue'(packetIn_dec[3:0]);
+        crc = (pid == DATA0) ? crc16Result : crc5Result;
+        nextState = state;
+        readyToReceive_rw = done_enc && done_dec;
+        start_enc = 0;
+        crcValid = (pid == DATA0) ? (crc == 16'h800D) : (crc == 5'b01100);
+        dataOut_rw = lastPacketIn[79:16];
+
+        case(state)
+            WAIT: begin
+                if(start_rw) nextState = txType_rw ? TOKEN_IN : TOKEN_OUT;
+            end
+            TOKEN_IN: begin
+                start_enc = 1;
+                packetOut_enc = {endpoint_p, 7'd5, ~logic'(IN), logic'(IN)};
+            end
+            DATA_IN: begin
+                if(errorCounter == 8) nextState = WAIT;
+                else if(done_dec) nextState = (timeoutCounter == 255) ? NAK_IN : CRC_IN;
+            end
+            CRC_IN: begin
+                startCRC = (crcCounter == 0);
+                if((pid == DATA0 && crcCounter == 64) ||
+                   (pid != DATA0 && crcCounter == 11)) 
+                    nextState = (crcValid) ? ACK_IN : NAK_IN;
+            end
+            NAK_IN: begin
+                start_enc = 1;
+                packetOut_enc = {~logic'(NAK), logic'(NAK)};
+                nextState = DATA_IN;
+            end
+            ACK_IN: begin
+                start_enc = 1;
+                packetOut_enc = {~logic'(ACK), logic'(ACK)};
+                nextState = WAIT;
+            end
+            TOKEN_OUT: begin
+                start_enc = 1;
+                packetOut_enc = {endpoint_p, 7'd5, ~logic'(OUT), logic'(OUT)};
+                nextState = DATA_OUT;
+            end
+            DATA_OUT: begin
+                packetOut_enc = {dataIn_rw, ~logic'(DATA0), logic'(DATA0)};
+                if(errorCounter == 8) nextState = WAIT;
+                else if(done_enc) nextState = ACK_OUT;
+            end
+            ACK_OUT: begin
+                if(done_dec) begin
+                    if(pid == ACK) nextState = WAIT;
+                    else nextState = DATA_OUT;
+                end
+            end
+        endcase
+    end
+
+    always_ff @(posedge clk, negedge rst_L) begin
+
+        if(~rst_L) begin
+            errorCounter <= 0;
+            timeoutCounter <= 0;
+            crcCounter <= 0;
+            lastPacketIn <= 0;
+            error <= 0;
+        end
+
+        else begin
+            if(nextState == WAIT && errorCounter == 8) begin
+                error <= 1;
+            end
+
+            case(state)
+                WAIT: begin
+                    errorCounter <= 0;
+                    if(nextState != WAIT) begin
+                        error <= 0;
+                    end
+                end
+                TOKEN_IN: begin
+                    timeoutCounter <= 0;
+                end
+                DATA_IN: begin
+                    timeoutCounter <= timeoutCounter + 1;
+                    if(done_dec) begin
+                        lastPacketIn <= packetIn_dec;
+                    end
+                    crcCounter <= 0;
+                end
+                CRC_IN: begin
+                    crcCounter <= crcCounter + 1;
+                end
+                NAK_IN: begin
+                    timeoutCounter <= 0;
+                    errorCounter <= errorCounter + 1;
+                end
+                ACK_OUT: begin
+                    if(done_dec && pid != ACK) errorCounter <= errorCounter + 1;
+                end
+
+            endcase
+
+            state <= nextState;
+        end
+
+    end
+
+    // txType: 1 => input, 0 => output
+
+
+endmodule: protocol
 
 /*
  The encoder module is used to take a packet, look at its PID, and based on
@@ -84,7 +369,7 @@ module encoder
     (input logic clk, rst_L, dataReady, okToSend,
      input logic [87:0] packet,
      output busState outputBusState,
-     output logic outputReady, stuffEnable);
+     output logic outputReady, stuffEnable, readyToReceive);
 
     logic [7:0] index; //Index counter
     logic [87:0] inputReg; //Holds our data
@@ -106,10 +391,12 @@ module encoder
         outputReady = (state != WAIT);
         pid = pidValue'(inputReg[3:0]);
         stuffEnable = 0;
+        readyToReceive = 0;
         case(state)
             // WAIT: Stall until we receive a packet
             WAIT: begin
                 nextState = (dataReady) ? SYNC : WAIT;
+                readyToReceive = 1;
             end
             // SYNC: Send the sync byte (00000001)
             SYNC: begin
@@ -564,5 +851,4 @@ module decoder
             state <= nextState;
         end
     end
-   
-endmodule : decoder
+endmodule: decoder
