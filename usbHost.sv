@@ -749,11 +749,11 @@ module decoder
             // SYNC: recieve the the sync byte (00000001)
             SYNC: begin
                 nextState = (counter >= 8'd7 && inputBusState == bus_J) ? DATA : SYNC;
-	        unstuffEnable = (counter >= 8'd7);
+	    //    unstuffEnable = (counter >= 8'd7);
             end
             // DATA: Increment counter to recieve the data into packet
             DATA: begin
-                unstuffEnable = 1;
+                unstuffEnable = (index >=8);
 	        nextState = DATA;
                 case(pid)
                     OUT: begin
