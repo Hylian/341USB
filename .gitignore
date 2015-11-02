@@ -38,3 +38,6 @@ ucli.key
 # with declarations for C/C++ functions.
 vc_hdrs.h
 
+*.old
+*.tcl
+*~
