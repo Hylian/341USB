@@ -69,7 +69,7 @@ module usbHost
     (input  bit [15:0] mempage, // Page to write
      input  bit [63:0] data, // array of bytes to write
      output bit        success);
-        //$monitor("rw0.state(%s), p0.state(%s) enc0.state(%s) enc0.pid(%b) \n dnc0(%s) nrdec_inputBusState(%s) nrdec_outputBusState(%s) packet(%b), p0.errorCounter(%d) \n dnc(%b)", rw0.state, p0.state, enc0.state, enc0.pid, dnc0.state, nrdec_inputBusState, nrdec_outputBusState, packet, p0.errorCounter, dnc0.packet);
+        //$monitor("rw0.state(%s), p0.state(%s) enc0.state(%s) enc0.pid(%b) \n dnc0(%s) nrdec_inputBusState(%s) nrdec_outputBusState(%s) packet(%b), p0.errorCounter(%d) \n dnc(%b) \n dnc index=%d, dnc pid=%s", rw0.state, p0.state, enc0.state, enc0.pid, dnc0.state, nrdec_inputBusState, nrdec_outputBusState, packet, p0.errorCounter, dnc0.outputReg, dnc0.index, dnc0.pid);
         memAddrIn_t <= mempage;
         txType_t <= 1;
         start_t <= 1;
@@ -282,6 +282,7 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
             ACK_IN: begin
                 start_enc = 1;
                 packetOut_enc = {4'b1101, 4'b0010};
+	        nextState = ACK_IN_DONE;
             end
             ACK_IN_DONE: begin
                 if(done_enc) nextState = WAIT;
@@ -292,7 +293,7 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
                 nextState = TOKEN_OUT_DONE;
             end
             TOKEN_OUT_DONE: begin
-                if(done_enc) nextState = DATA_IN;
+                if(done_enc) nextState = DATA_OUT;
             end
             DATA_OUT: begin
                 start_enc = 1;
@@ -672,7 +673,7 @@ module bitUnstuff
             counter <= 0;
         end   
         else begin
-            if(counter == 6) begin
+            if(counter == 6 && dataReady) begin
                 counter <= 0;
             end
             else if(dataReady) begin
@@ -742,7 +743,8 @@ module decoder
             end
             // SYNC: recieve the the sync byte (00000001)
             SYNC: begin
-                nextState = (counter == 8'd7) ? DATA : SYNC;
+                nextState = (counter >= 8'd7 && inputBusState == bus_J) ? DATA : SYNC;
+	        unstuffEnable = (counter >= 8'd7);
             end
             // DATA: Increment counter to recieve the data into packet
             DATA: begin
@@ -750,24 +752,21 @@ module decoder
 	        nextState = DATA;
                 case(pid)
                     OUT: begin
-                        if(index == 8'd18) nextState = CRC;
+                        if(index >= 8'd18) nextState = CRC;
                     end
                     IN: begin
-                        if(index == 8'd18) nextState = CRC;
+                        if(index >= 8'd18) nextState = CRC;
                     end
                     DATA0: begin
-                        if(index == 8'd71) nextState = CRC;
+                        if(index >= 8'd71) nextState = CRC;
                     end
                     ACK: begin
-                        if(index == 8'd7) nextState = EOP;
+                        if(index >= 8'd7) nextState = EOP;
                     end
                     NAK: begin
-                        if(index == 8'd7) nextState = EOP;
+                        if(index >= 8'd7) nextState = EOP;
                     end
-		    default: begin
-		        nextState = DATA;
-		    end
-                endcase
+                endcase // case (pid)
             end
             // CRC: Takes in the CRC of the payload 
             CRC: begin
@@ -776,7 +775,7 @@ module decoder
             end
             // EOP: Send EOP signal
             EOP: begin
-                if(counter == 8'd2) begin
+                if(counter >= 8'd2) begin
                     nextState = WAIT;
                 end
                 else begin
@@ -803,21 +802,17 @@ module decoder
 	        //First we see if we have recieved the sync
                 if(nextState == DATA) begin
                     counter <= 0;
-		    outputReg <= 0;
+		    //outputReg <= 0;
 		    outputReady <= 0; 
 		    //Currently the output is still the old packet 
 		    //which is valid until the sync
 		end
 	        //Then we wait until we see a stream of at least 7 zeros
-	        else if(inputBusState == bus_K && counter != 8'd7) begin
-		    counter <= counter + 1;
-		end
-	        //Then we look for a 1
-	        else if(inputBusState == bus_J && counter == 8'd7) begin
+	        else if(inputBusState == bus_K) begin
 		    counter <= counter + 1;
 		end
 	        //If we get a zero before this, we reset counter
-	        else if(counter != 8'd7) begin
+	        else if(counter < 8'd7 && inputBusState != bus_K) begin
 		    counter <= 0;
 		end
             end

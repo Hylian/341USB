@@ -1,5 +1,5 @@
 
-module tb
+module test
   (output logic clk, rst_L);
    bit [15:0] addr;
    bit [63:0] dataRead;
@@ -41,7 +41,7 @@ module tb
       end
       
       @(posedge clk);
-      #5 writeData(addr, dataWrite, did_it_right);
+      #5 host.writeData(addr, dataWrite, did_it_right);
       @(posedge clk);
       if(did_it_right) begin
 	 $display("Test 2: Passed");
@@ -53,4 +53,4 @@ module tb
       end
    end // initial begin
    
-endmodule : tb
+endmodule : test
