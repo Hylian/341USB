@@ -27,15 +27,17 @@ module usbHost
     logic [63:0] dataOut_p;
     logic error;
 
-    //The following is for testing
-    assign nrdec_dataReady = ~nrzi_outputValid;
-    assign nrdec_inputBusState = nrzi_outputBusState;
+    assign nrdec_dataReady = !nrzi_outputValid;
 
     assign wires.DP = nrzi_outputValid ? (nrzi_outputBusState == bus_J) : 1'bz;
     assign wires.DM = nrzi_outputValid ? (nrzi_outputBusState == bus_K) : 1'bz;
 
-    assign wires.DP = nrzi_outputValid ? 1'bz : (nrdec_inputBusState == bus_J);
-    assign wires.DM = nrzi_outputValid ? 1'bz : (nrdec_inputBusState == bus_K);
+    always_comb begin
+        if(!wires.DP && !wires.DM) nrdec_inputBusState = bus_SE0;
+        else if(wires.DP) nrdec_inputBusState = bus_J;
+        else nrdec_inputBusState = bus_K;
+
+    end
 
     task prelabRequest();
     // sends an OUT packet with ADDR=5 and ENDP=4
@@ -54,7 +56,7 @@ module usbHost
     (input  bit [15:0] mempage, // Page to write
      output bit [63:0] data, // array of bytes to write
      output bit        success);
-        $monitor("rw0.state(%s), p0.state(%s) enc0.state(%s)", rw0.state, p0.state, enc0.state);
+        $monitor("rw0.state(%s), p0.state(%s) enc0.state(%s) enc0.pid(%s)", rw0.state, p0.state, enc0.state, enc0.pid);
         memAddrIn_t <= mempage;
         txType_t <= 1;
         start_t <= 1;
@@ -74,7 +76,7 @@ module usbHost
     (input  bit [15:0] mempage, // Page to write
      input  bit [63:0] data, // array of bytes to write
      output bit        success);
-        $monitor("rw0.state(%s), p0.state(%s) enc0.state(%s)", rw0.state, p0.state, enc0.state);
+        $monitor("rw0.state(%s), p0.state(%s) enc0.state(%s) enc0.pid(%b) dnc0(%s) nrdec_inputBusState(%s) nrdec_outputBusState(%s) packet(%b), p0.errorCounter(%d)", rw0.state, p0.state, enc0.state, enc0.pid, dnc0.state, nrdec_inputBusState, nrdec_outputBusState, packet, p0.errorCounter);
         memAddrIn_t <= mempage;
         txType_t <= 1;
         start_t <= 1;
@@ -231,7 +233,7 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
                 output logic [87:0] packetOut_enc,
                 input logic [87:0] packetIn_dec);
 
-    enum {WAIT, TOKEN_IN, DATA_IN, CRC_IN, NAK_IN, ACK_IN, TOKEN_OUT, DATA_OUT, NAK_OUT, ACK_OUT} state, nextState;
+    enum {WAIT, TOKEN_IN, TOKEN_IN_DONE, DATA_IN, DATA_IN_DONE, CRC_IN, NAK_IN, NAK_IN_DONE, ACK_IN, ACK_IN_DONE, TOKEN_OUT, TOKEN_OUT_DONE, DATA_OUT, DATA_OUT_DONE, NAK_OUT, NAK_OUT_DONE, ACK_OUT} state, nextState;
 
     typedef enum logic[3:0] {OUT = 4'b0001, IN = 4'b1001, DATA0 = 4'b0011,
                              ACK = 4'b0010, NAK = 4'b1010} pidValue;
@@ -261,11 +263,19 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
             end
             TOKEN_IN: begin
                 start_enc = 1;
-                packetOut_enc = {endpoint_p, 7'd5, ~logic'(IN), logic'(IN)};
+                packetOut_enc = {endpoint_p, 7'd5, 4'b0110, 4'b1001};
+                nextState = TOKEN_IN_DONE;
+            end
+            TOKEN_IN_DONE: begin
+                if(done_enc) nextState = DATA_IN;
             end
             DATA_IN: begin
                 if(errorCounter == 8) nextState = WAIT;
-                else if(done_dec) nextState = (timeoutCounter == 255) ? NAK_IN : CRC_IN;
+                else nextState = DATA_IN_DONE;
+            end
+            DATA_IN_DONE: begin
+                if(done_dec) nextState = CRC_IN;
+                else if(timeoutCounter == 255) nextState = NAK_IN;
             end
             CRC_IN: begin
                 startCRC = (crcCounter == 0);
@@ -275,23 +285,35 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
             end
             NAK_IN: begin
                 start_enc = 1;
-                packetOut_enc = {~logic'(NAK), logic'(NAK)};
-                nextState = DATA_IN;
+                packetOut_enc = {4'b0101, 4'b1010};
+                nextState = NAK_IN_DONE;
+            end
+            NAK_IN_DONE: begin
+                if(done_enc) nextState = DATA_IN;
             end
             ACK_IN: begin
                 start_enc = 1;
-                packetOut_enc = {~logic'(ACK), logic'(ACK)};
-                nextState = WAIT;
+                packetOut_enc = {4'b1101, 4'b0010};
+            end
+            ACK_IN_DONE: begin
+                if(done_enc) nextState = WAIT;
             end
             TOKEN_OUT: begin
                 start_enc = 1;
-                packetOut_enc = {endpoint_p, 7'd5, ~logic'(OUT), logic'(OUT)};
-                nextState = DATA_OUT;
+                packetOut_enc = {endpoint_p, 7'd5, 4'b1110, 4'b0001};
+                nextState = TOKEN_OUT_DONE;
+            end
+            TOKEN_OUT_DONE: begin
+                if(done_enc) nextState = DATA_IN;
             end
             DATA_OUT: begin
-                packetOut_enc = {dataIn_rw, ~logic'(DATA0), logic'(DATA0)};
+                start_enc = 1;
+                packetOut_enc = {dataIn_rw, 4'b1100, 4'b0011};
                 if(errorCounter == 8) nextState = WAIT;
-                else if(done_enc) nextState = ACK_OUT;
+                else nextState = DATA_OUT_DONE;
+            end
+            DATA_OUT_DONE: begin
+                if(done_enc) nextState = ACK_OUT;
             end
             ACK_OUT: begin
                 if(done_dec) begin
@@ -329,10 +351,13 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
                 end
                 DATA_IN: begin
                     timeoutCounter <= timeoutCounter + 1;
+                    crcCounter <= 0;
+                end
+                DATA_IN_DONE: begin
+                    timeoutCounter <= timeoutCounter + 1;
                     if(done_dec) begin
                         lastPacketIn <= packetIn_dec;
                     end
-                    crcCounter <= 0;
                 end
                 CRC_IN: begin
                     crcCounter <= crcCounter + 1;
@@ -406,7 +431,7 @@ module encoder
                     outputBusState = bus_K;
                 end
             end
-// DATA: Increment a counter to transmit the packet payload one bit at a time
+            // DATA: Increment a counter to transmit the packet payload one bit at a time
             DATA: begin
                 outputBusState = busState'(inputReg[index]);
                 stuffEnable = index >= 8;
