@@ -51,6 +51,34 @@ module test
 	 $display("Test 2: Failed - no success");
 	 $display("addr = %h \n data=%h", addr, dataWrite);
       end
+      $display("****************************************");
+      $display("****************Read Test***************");
+      $display("****************************************");
+      
+      addr <= 16'hFFFF;
+      @(posedge clk);
+      host.readData(addr, dataRead, did_it_right);
+      @(posedge clk);
+      if(did_it_right && ~dataRead == 0) begin
+	 $display("Test 3: Passed");
+      end
+      else begin
+	 errorCount <= errorCount + 1;
+	 $display("Test 3: Failed - no success");
+	 $display("addr = %h \n data=%h", addr, dataRead);
+      end
+      
+      @(posedge clk);
+      #5 host.readData(addr, dataRead, did_it_right);
+      @(posedge clk);
+      if(did_it_right && dataRead == 0) begin
+	 $display("Test 4: Passed");
+      end
+      else begin
+	 errorCount <= errorCount + 1;
+	 $display("Test 4: Failed - no success");
+	 $display("addr = %h \n data=%h", addr, dataRead);
+      end
    end // initial begin
    
 endmodule : test

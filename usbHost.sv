@@ -53,7 +53,7 @@ module usbHost
     (input  bit [15:0] mempage, // Page to write
      output bit [63:0] data, // array of bytes to write
      output bit        success);
-        //$monitor("rw0.state(%s), p0.state(%s) enc0.state(%s) enc0.pid(%s)", rw0.state, p0.state, enc0.state, enc0.pid);
+        //$monitor("enc0.packet(%b) \n dec.packet(%b) \n dncinput(%s)", enc0.packet, dnc0.packet, dnc0.inputBusState);
         memAddrIn_t <= mempage;
         txType_t <= 1;
         start_t <= 1;
@@ -69,7 +69,8 @@ module usbHost
     (input  bit [15:0] mempage, // Page to write
      input  bit [63:0] data, // array of bytes to write
      output bit        success);
-        //$monitor("rw0.state(%s), p0.state(%s) enc0.state(%s) enc0.pid(%b) \n dnc0(%s) nrdec_inputBusState(%s) nrdec_outputBusState(%s) packet(%b), p0.errorCounter(%d) \n dnc(%b) \n dnc index=%d, dnc pid=%s", rw0.state, p0.state, enc0.state, enc0.pid, dnc0.state, nrdec_inputBusState, nrdec_outputBusState, packet, p0.errorCounter, dnc0.outputReg, dnc0.index, dnc0.pid);
+//        $monitor("rw0.state(%s), p0.state(%s) enc0.state(%s) enc0.pid(%b) \n dnc0(%s) nrdec_inputBusState(%s) nrdec_outputBusState(%s) packet(%b), p0.errorCounter(%d) \n dnc(%b) \n dnc index=%d, dnc pid=%s", rw0.state, p0.state, enc0.state, enc0.pid, dnc0.state, nrdec_inputBusState, nrdec_outputBusState, packet, p0.errorCounter, dnc0.outputReg, dnc0.index, dnc0.pid);
+        //$monitor("%b  enc0.packet(%b) \n dec.packet(%b) \n dncinput(%s)", clk, enc0.packet, dnc0.packet, dnc0.inputBusState);
         memAddrIn_t <= mempage;
         txType_t <= 1;
         start_t <= 1;
@@ -563,32 +564,36 @@ module crc16
 
     logic [63:0] dataReg;
     logic [7:0] counter;
-
+    logic 	crc0_next, crc2_next, crc15_next;
+   
     always_comb begin
         case(state)
             WAIT: nextState = (dataReady) ? GO : WAIT;
             GO: nextState = (counter == 8'd63) ? WAIT : GO;
-        endcase
+        endcase // case (state)
+        crc0_next = dataReg[counter]^crc[15];
+        crc2_next = (crc0_next^crc[1]);
+        crc15_next = crc0_next^crc[14];
     end
 
     always_ff @(posedge clk, negedge rst_L) begin
         if(~rst_L) begin
             state <= WAIT;
-            crc <= 0;
+            crc <= 16'hFFFF;
             counter <= 0;
         end
         else begin
             if(state == WAIT && nextState == GO) begin
                 dataReg <= data;
-                crc <= 0;
+                crc <= 16'hFFFF;
                 counter <= 0;
             end
-            if(state == GO) begin
-                crc[0] <= (dataReg[counter]^crc[15]);
+            else if(state == GO) begin
+                crc[0] <= crc0_next;
                 crc[1] <= crc[0];
-                crc[2] <= (dataReg[counter]^crc[15])^crc[1];
+                crc[2] <= crc2_next;
                 crc[14:3] <= crc[13:2];
-                crc[15] <= (dataReg[counter]^crc[15])^crc[14];
+                crc[15] <= crc15_next;
                 counter <= counter + 1;
             end
             state <= nextState;
@@ -673,7 +678,7 @@ module bitUnstuff
             counter <= 0;
         end   
         else begin
-            if(counter == 6 && dataReady) begin
+            if(counter == 6 && dataReady && unstuffEnable) begin
                 counter <= 0;
             end
             else if(dataReady) begin
@@ -838,7 +843,7 @@ module decoder
 		    end
                 end
             end
-            if(state == CRC) begin
+            if(state == CRC && dataReady) begin
 	        //We need to assign data to the inputReg 
 	        //by converting the state into a 1 or 0
 	        //However, the crc is inverted and in MSB 
