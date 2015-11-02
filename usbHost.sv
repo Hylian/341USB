@@ -71,6 +71,13 @@ module usbHost
      output bit        success);
 //        $monitor("rw0.state(%s), p0.state(%s) enc0.state(%s) enc0.pid(%b) \n dnc0(%s) nrdec_inputBusState(%s) nrdec_outputBusState(%s) packet(%b), p0.errorCounter(%d) \n dnc(%b) \n dnc index=%d, dnc pid=%s", rw0.state, p0.state, enc0.state, enc0.pid, dnc0.state, nrdec_inputBusState, nrdec_outputBusState, packet, p0.errorCounter, dnc0.outputReg, dnc0.index, dnc0.pid);
         //$monitor("%b  enc0.packet(%b) \n dec.packet(%b) \n dncinput(%s)", clk, enc0.packet, dnc0.packet, dnc0.inputBusState);
+        $display("Entering writedata");
+        //$monitor("clk(%d) enc0.packet(%b) enc0.state(%s) enc0.outputBusState(%s) enc0.counter(%d)", clk, enc0.packet, enc0.state, enc0.outputBusState, enc0.counter);
+        //$monitor("bs0.outputBusState(%s)", bs0.outputBusState);
+        //$monitor("nrzi0.outputBusState(%s)", nrzi0.outputBusState);
+        //$monitor("DP(%b) DM(%b) nrzi0.outputBusState(%s)", wires.DP, wires.DM, nrzi0.outputBusState);
+        //$monitor("nrzi0.outputBusState(%s) dpanddm are 1 (%b)", nrzi0.outputBusState, (wires.DP==1 && wires.DM==1));
+        //$monitor("clk(%b) enc.state(%s) nrzi.outputBusState(%s) enc.stuffEnable(%b) bs0.stuffEnableLatch(%b) bs0.counter(%d)", clk, enc0.state, nrzi0.outputBusState, enc0.stuffEnable, bs0.stuffEnableLatch, bs0.counter);
         memAddrIn_t <= mempage;
         txType_t <= 1;
         start_t <= 1;
@@ -236,7 +243,7 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
     pidValue pid;
 
     crc5 a1(clk, rst_L, lastPacketIn[18:8], startCRC, crc5Result);
-    crc16 a2(clk, rst_L, lastPacketIn[71:8], startCRC, crc16Result);
+    crc16 a2(clk, rst_L, dataOut_rw, startCRC, crc16Result);
 
     always_comb begin
         pid = pidValue'(packetIn_dec[3:0]);
@@ -245,7 +252,7 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
         readyToReceive_rw = done_enc && done_dec;
         start_enc = 0;
         crcValid = (pid == DATA0) ? (crc == 16'h800D) : (crc == 5'b01100);
-        dataOut_rw = lastPacketIn[79:16];
+        dataOut_rw = lastPacketIn[71:8];
         case(state)
             WAIT: begin
                 if(start_rw) nextState = txType_rw ? TOKEN_IN : TOKEN_OUT;
@@ -461,6 +468,7 @@ module encoder
                 end
             end
         endcase
+
     end
 
     always_ff @(posedge clk, negedge rst_L) begin
@@ -470,36 +478,38 @@ module encoder
             index <= 0;
         end
         else begin
-            if(state == WAIT) begin
-                counter <= 0;
-                index <= 0;
-            end
-            if(state == WAIT && nextState == SYNC) begin
-                inputReg <= packet;
-            end
-            if(state == SYNC) begin
-                counter <= counter + 1;
-                if(nextState == DATA) begin
+            if(okToSend) begin
+                if(state == WAIT) begin
+                    counter <= 0;
+                    index <= 0;
+                end
+                if(state == WAIT && nextState == SYNC) begin
+                    inputReg <= packet;
+                end
+                if(state == SYNC) begin
+                    counter <= counter + 1;
+                    if(nextState == DATA) begin
+                        counter <= 0;
+                    end
+                end
+                if(state == DATA) begin
+                    index <= index + 1;
+                    if(nextState == CRC) begin
+                        if(pid == DATA0) counter <= 15;
+                        else counter <= 4;
+                    end
+                end
+                if(state == CRC) begin
+                    counter <= counter - 1;
+                end
+                if(state != EOP && nextState == EOP) begin
                     counter <= 0;
                 end
-            end
-            if(state == DATA) begin
-                index <= index + 1;
-                if(nextState == CRC) begin
-                    if(pid == DATA0) counter = 15;
-                    else counter = 4;
+                if(state == EOP) begin
+                    counter <= counter + 1;
                 end
+                state <= nextState;
             end
-            if(state == CRC) begin
-                counter <= counter - 1;
-            end
-            if(nextState == EOP) begin
-                counter <= 0;
-            end
-            if(state == EOP) begin
-                counter <= counter + 1;
-            end
-            state <= nextState;
         end
     end
    
@@ -609,24 +619,26 @@ module bitStuff
      output busState outputBusState);
 
     logic [2:0]	counter;
+    logic stuffEnableLatch;
 
     always_comb begin
         outputReady = dataReady || (counter == 6);
         outputBusState = (counter == 6) ? bus_K : inputBusState;   
-        readyToReceive = !(counter == 5);
+        readyToReceive = !(counter == 6);
     end
 
     always_ff @(posedge clk, negedge rst_L) begin
         if(~rst_L) begin
             counter <= 0;
+            stuffEnableLatch <= 0;
         end   
         else begin
+            stuffEnableLatch <= stuffEnable;
             if(counter == 6) begin
                 counter <= 0;
             end
             else if(dataReady) begin
-                if(stuffEnable && inputBusState == bus_J) 
-		    counter <= counter + 1;
+                if(stuffEnableLatch && inputBusState == bus_J) counter <= counter + 1;
                 else counter <= 0;
             end
         end
@@ -649,8 +661,7 @@ module nrziEncode
             if(dataReady) begin
                 outputValid <= 1;
                 if(outputBusState == bus_SE0) outputBusState <= inputBusState;
-                else if(inputBusState == bus_K) 
-		    outputBusState <= (outputBusState == bus_K) ? bus_J : bus_K;
+                else if(inputBusState == bus_K) outputBusState <= (outputBusState == bus_K) ? bus_J : bus_K;
                 else if(inputBusState == bus_SE0) outputBusState <= bus_SE0;
             end
             else outputValid <= 0;
