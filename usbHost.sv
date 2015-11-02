@@ -36,18 +36,15 @@ module usbHost
         if(!wires.DP && !wires.DM) nrdec_inputBusState = bus_SE0;
         else if(wires.DP) nrdec_inputBusState = bus_J;
         else nrdec_inputBusState = bus_K;
-
     end
 
     task prelabRequest();
     // sends an OUT packet with ADDR=5 and ENDP=4
-     
         packet <= {4'd4,7'd5,~4'd1,4'd1};
         enc_dataReady <= 0;
         #10 @(posedge clk) enc_dataReady <= 1;
         @(posedge clk) enc_dataReady <= 0;
         repeat(100)@(posedge clk) packet = 0;
-
     endtask: prelabRequest
 
     // host sends memPage to thumb drive and then gets data back from it
@@ -56,18 +53,14 @@ module usbHost
     (input  bit [15:0] mempage, // Page to write
      output bit [63:0] data, // array of bytes to write
      output bit        success);
-        $monitor("rw0.state(%s), p0.state(%s) enc0.state(%s) enc0.pid(%s)", rw0.state, p0.state, enc0.state, enc0.pid);
+        //$monitor("rw0.state(%s), p0.state(%s) enc0.state(%s) enc0.pid(%s)", rw0.state, p0.state, enc0.state, enc0.pid);
         memAddrIn_t <= mempage;
         txType_t <= 1;
         start_t <= 1;
-
-
         wait(done_t);
-
         start_t <= 0;
         data <= dataOut_t;
         success <= !error;
-
     endtask: readData
 
     // Host sends memPage to thumb drive and then sends data
@@ -76,17 +69,14 @@ module usbHost
     (input  bit [15:0] mempage, // Page to write
      input  bit [63:0] data, // array of bytes to write
      output bit        success);
-        $monitor("rw0.state(%s), p0.state(%s) enc0.state(%s) enc0.pid(%b) dnc0(%s) nrdec_inputBusState(%s) nrdec_outputBusState(%s) packet(%b), p0.errorCounter(%d)", rw0.state, p0.state, enc0.state, enc0.pid, dnc0.state, nrdec_inputBusState, nrdec_outputBusState, packet, p0.errorCounter);
+        //$monitor("rw0.state(%s), p0.state(%s) enc0.state(%s) enc0.pid(%b) \n dnc0(%s) nrdec_inputBusState(%s) nrdec_outputBusState(%s) packet(%b), p0.errorCounter(%d) \n dnc(%b)", rw0.state, p0.state, enc0.state, enc0.pid, dnc0.state, nrdec_inputBusState, nrdec_outputBusState, packet, p0.errorCounter, dnc0.packet);
         memAddrIn_t <= mempage;
         txType_t <= 1;
         start_t <= 1;
         dataIn_t <= data;
-
         wait(done_t);
-
         start_t <= 0;
         success <= !error;
-
     endtask: writeData
 
     encoder enc0(clk, rst_L, enc_dataReady, enc_okToSend, packet, enc_busState, bs_dataReady, bs_stuffEnable, enc_readyToReceive);
@@ -216,7 +206,6 @@ module readwrite(input logic clk, rst_L, start_t, txType_t,
                     if(done_p) dataOut_t <= dataIn_p;
                 end
             endcase
-
             state <= nextState;
         end
     end
@@ -256,7 +245,6 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
         start_enc = 0;
         crcValid = (pid == DATA0) ? (crc == 16'h800D) : (crc == 5'b01100);
         dataOut_rw = lastPacketIn[79:16];
-
         case(state)
             WAIT: begin
                 if(start_rw) nextState = txType_rw ? TOKEN_IN : TOKEN_OUT;
@@ -325,7 +313,6 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
     end
 
     always_ff @(posedge clk, negedge rst_L) begin
-
         if(~rst_L) begin
             errorCounter <= 0;
             timeoutCounter <= 0;
@@ -338,7 +325,6 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
             if(nextState == WAIT && errorCounter == 8) begin
                 error <= 1;
             end
-
             case(state)
                 WAIT: begin
                     errorCounter <= 0;
@@ -369,9 +355,7 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
                 ACK_OUT: begin
                     if(done_dec && pid != ACK) errorCounter <= errorCounter + 1;
                 end
-
             endcase
-
             state <= nextState;
         end
 
@@ -722,7 +706,6 @@ module nrziDecode
                 else if(inputBusState == lastBusState) outputBusState <=  bus_J;
                 else if(inputBusState != lastBusState) outputBusState <=  bus_K;
 	        lastBusState <= inputBusState;
-	       
             end
             else outputValid <= 0;
         end
@@ -763,7 +746,7 @@ module decoder
             end
             // DATA: Increment counter to recieve the data into packet
             DATA: begin
-                unstuffEnable = index >= 8;
+                unstuffEnable = 1;
 	        nextState = DATA;
                 case(pid)
                     OUT: begin
@@ -823,7 +806,7 @@ module decoder
 		    outputReg <= 0;
 		    outputReady <= 0; 
 		    //Currently the output is still the old packet 
-		    // which is valid until the sync
+		    //which is valid until the sync
 		end
 	        //Then we wait until we see a stream of at least 7 zeros
 	        else if(inputBusState == bus_K && counter != 8'd7) begin
@@ -840,7 +823,7 @@ module decoder
             end
             if(state == DATA && dataReady) begin
 	        //We need to assign data to the inputReg 
-	        // by converting the state into a 1 or 0
+	        //by converting the state into a 1 or 0
 	        if(inputBusState == bus_J) begin
 		    outputReg[index] <= 1;
 		end
@@ -862,7 +845,7 @@ module decoder
             end
             if(state == CRC) begin
 	        //We need to assign data to the inputReg 
-	        // by converting the state into a 1 or 0
+	        //by converting the state into a 1 or 0
 	        //However, the crc is inverted and in MSB 
 	        // so we need to go from left to right
 	        //and invert it
