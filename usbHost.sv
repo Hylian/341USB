@@ -72,7 +72,8 @@ module usbHost
 //        $monitor("rw0.state(%s), p0.state(%s) enc0.state(%s) enc0.pid(%b) \n dnc0(%s) nrdec_inputBusState(%s) nrdec_outputBusState(%s) packet(%b), p0.errorCounter(%d) \n dnc(%b) \n dnc index=%d, dnc pid=%s", rw0.state, p0.state, enc0.state, enc0.pid, dnc0.state, nrdec_inputBusState, nrdec_outputBusState, packet, p0.errorCounter, dnc0.outputReg, dnc0.index, dnc0.pid);
         //$monitor("%b  enc0.packet(%b) \n dec.packet(%b) \n dncinput(%s)", clk, enc0.packet, dnc0.packet, dnc0.inputBusState);
         $display("Entering writedata");
-        //$monitor("clk(%d) enc0.packet(%b) enc0.state(%s) enc0.outputBusState(%s) enc0.counter(%d)", clk, enc0.packet, enc0.state, enc0.outputBusState, enc0.counter);
+        //$monitor("clk(%d) enc0.packet(%b) enc0.state(%s) enc0.outputBusState(%s) enc0.counter(%d) enc0.crc(%b)", clk, enc0.packet, enc0.state, enc0.outputBusState, enc0.counter, enc0.crc);
+        $monitor("enc0.a2.state(%s) enc0.a2.crc(%b) enc0.crc(%b)", enc0.a2.state, enc0.a2.crc, enc0.crc);
         //$monitor("bs0.outputBusState(%s)", bs0.outputBusState);
         //$monitor("nrzi0.outputBusState(%s)", nrzi0.outputBusState);
         //$monitor("DP(%b) DM(%b) nrzi0.outputBusState(%s)", wires.DP, wires.DM, nrzi0.outputBusState);
@@ -391,15 +392,16 @@ module encoder
     logic [15:0] crc, crc16Result;
     logic [7:0] counter;
     logic [4:0] crc5Result;
+    logic crc5Enable, crc16Enable;
 	   
     enum {WAIT, SYNC, DATA, CRC, EOP} state, nextState;
     typedef enum logic[3:0] {OUT = 4'b0001, IN = 4'b1001, DATA0 = 4'b0011,
                      ACK = 4'b0010, NAK = 4'b1010} pidValue;
     pidValue pid;
 
-    crc5 a1(clk, rst_L, packet[18:8], dataReady, crc5Result);
-    crc16 a2(clk, rst_L, packet[71:8], dataReady, crc16Result);
-   
+    crc5 a1(clk, rst_L, packet[18:8], crc5Enable, crc5Result);
+    crc16 a2(clk, rst_L, packet[71:8], crc16Enable, crc16Result);
+
     always_comb begin
         crc = (pid == DATA0) ? ~crc16Result : ~crc5Result;
         outputBusState = bus_J;
@@ -407,6 +409,8 @@ module encoder
         pid = pidValue'(inputReg[3:0]);
         stuffEnable = 0;
         readyToReceive = 0;
+        crc5Enable = 0;
+        crc16Enable = 0;
         case(state)
             // WAIT: Stall until we receive a packet
             WAIT: begin
@@ -418,6 +422,9 @@ module encoder
                 if(counter == 8'd7) begin
                     nextState = DATA;
                     outputBusState = bus_J;
+
+                    if(pid == DATA0) crc16Enable = 1;
+                    else crc5Enable = 1;
                 end
                 else begin
                     nextState = SYNC;
@@ -582,7 +589,7 @@ module crc16
             GO: nextState = (counter == 8'd63) ? WAIT : GO;
         endcase // case (state)
         crc0_next = dataReg[counter]^crc[15];
-        crc2_next = (crc0_next^crc[1]);
+        crc2_next = crc0_next^crc[1];
         crc15_next = crc0_next^crc[14];
     end
 
