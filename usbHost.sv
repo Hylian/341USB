@@ -64,6 +64,8 @@ module usbHost
        //$monitor("wires %b %b, nrzi out = %s, nrzioutputValid=%b, dec=%b, enc=%b state=%s", wires.DP, wires.DM, nrzi_outputBusState, nrzi_outputValid, p0.done_dec, p0.done_enc, nrdec0.inputBusState);
         //$monitor("dnc0.state(%s) dnc0.packet(%b) p0.state(%s) p0.crc(%b)", dnc0.state, dnc0.packet, p0.state, p0.crc);
         //$monitor("p0.a2.dataReg(%b) p0.crc16Result(%b)", p0.a2.dataReg, p0.crc16Result);
+        $monitor("dnc0.outputReg(%b)", dnc0.outputReg);
+
 
        
         memAddrIn_t <= mempage;
