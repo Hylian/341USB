@@ -30,8 +30,9 @@ module usbHost
 
     assign nrdec_dataReady = !nrzi_outputValid;
 
-    assign wires.DP = nrzi_outputValid ? (nrzi_outputBusState == bus_J) : 1'bz;
-    assign wires.DM = nrzi_outputValid ? (nrzi_outputBusState == bus_K) : 1'bz;
+
+    assign wires.DP = (nrzi_outputValid) ? (nrzi_outputBusState == bus_J) : 1'bz;
+    assign wires.DM = (nrzi_outputValid) ? (nrzi_outputBusState == bus_K) : 1'bz;
 
     always_comb begin
         if(!wires.DP && !wires.DM) nrdec_inputBusState = bus_SE0;
@@ -56,10 +57,12 @@ module usbHost
      output bit        success);
         //$monitor("enc0.packet(%b) \n dec.packet(%b) \n dncinput(%s)", enc0.packet, dnc0.packet, dnc0.inputBusState);
         $display("Entering readData");
-        $monitor("rw0.state(%s) rw0.done_p(%b) p0.state(%s) p0.readyToReceive_rw(%b) p0.done_enc(%b) p0.done_dec(%b) enc0.state(%s) enc0.inputReg(%b) enc0.pid(%s) nrzi0.outputBusState(%s) nrzi0.outputValid(%b)", rw0.state, rw0.done_p, p0.state, p0.readyToReceive_rw, p0.done_enc, p0.done_dec, enc0.state, enc0.inputReg, enc0.pid, nrzi0.outputBusState, nrzi0.outputValid);
-        temprst <= 1;
-        @(posedge clk) temprst <= 0;
-        @(posedge clk) temprst <= 1;
+        //$monitor("rw0.state(%s) rw0.done_p(%b) p0.state(%s) p0.readyToReceive_rw(%b) p0.done_enc(%b) p0.done_dec(%b) enc0.state(%s) enc0.inputReg(%b) enc0.pid(%s) nrzi0.outputBusState(%s) nrzi0.outputValid(%b)", rw0.state, rw0.done_p, p0.state, p0.readyToReceive_rw, p0.done_enc, p0.done_dec, enc0.state, enc0.inputReg, enc0.pid, nrzi0.outputBusState, nrzi0.outputValid);
+        //temprst <= 1;
+        //@(posedge clk) temprst <= 0;
+        //@(posedge clk) temprst <= 1;
+       $monitor("wires %b %b, nrzi out = %s, nrzioutputValid=%b, dec=%b, enc=%b state=%s", wires.DP, wires.DM, nrzi_outputBusState, nrzi_outputValid, p0.done_dec, p0.done_enc, nrdec0.inputBusState);
+       
         memAddrIn_t <= mempage;
         txType_t <= 1;
         start_t <= 1;
@@ -87,8 +90,9 @@ module usbHost
         //$monitor("nrzi0.outputBusState(%s) dpanddm are 1 (%b)", nrzi0.outputBusState, (wires.DP==1 && wires.DM==1));
         //$monitor("clk(%b) enc.state(%s) nrzi.outputBusState(%s) enc.stuffEnable(%b) bs0.stuffEnableLatch(%b) bs0.counter(%d)", clk, enc0.state, nrzi0.outputBusState, enc0.stuffEnable, bs0.stuffEnableLatch, bs0.counter);
         //$monitor("rw0.state(%s) dataIn_t(%x) rw0.dataIn_t(%x) rw0.dataOut_p(%x)", rw0.state, dataIn_t, rw0.dataIn_t, rw0.dataOut_p);
-        $monitor("rw0.state(%s) rw0.done_p(%b) p0.state(%s) p0.readyToReceive_rw(%b) p0.done_enc(%b) enc0.inputReg(%b) enc0.pid(%s) nrzi0.outputBusState(%s) nrzi.outputValid(%b)", rw0.state, rw0.done_p, p0.state, p0.readyToReceive_rw, p0.done_enc, enc0.inputReg, enc0.pid, nrzi0.outputBusState, nrzi0.outputValid);
-        temprst <= 1;
+        //$monitor("rw0.state(%s) rw0.done_p(%b) p0.state(%s) p0.readyToReceive_rw(%b) p0.done_enc(%b) enc0.inputReg(%b) enc0.pid(%s) nrzi0.outputBusState(%s) nrzi.outputValid(%b)", rw0.state, rw0.done_p, p0.state, p0.readyToReceive_rw, p0.done_enc, enc0.inputReg, enc0.pid, nrzi0.outputBusState, nrzi0.outputValid);
+        //temprst <= 1;
+              //$monitor("wires %b %b, nrzi out = %s, nrzioutputValid=%b, dec=%b, enc=%b \n dec packet = %b", wires.DP, wires.DM, nrzi_outputBusState, nrzi_outputValid, p0.done_dec, p0.done_enc, dnc_packet);
         memAddrIn_t <= mempage;
         txType_t <= 0;
         start_t <= 1;
@@ -507,10 +511,10 @@ module encoder
                     inputReg <= packet;
                 end
                 if(state == SYNC) begin
-                    counter <= counter + 1;
                     if(nextState == DATA) begin
                         counter <= 0;
                     end
+		    else counter <= counter + 1;
                 end
                 if(state == DATA) begin
                     index <= index + 1;
@@ -839,7 +843,8 @@ module decoder
                 if(nextState == DATA) begin
                     counter <= 0;
 		    //outputReg <= 0;
-		    outputReady <= 0; 
+		    outputReady <= 0;
+		    index <= 0;
 		    //Currently the output is still the old packet 
 		    //which is valid until the sync
 		end
@@ -861,7 +866,7 @@ module decoder
 		else begin
 		    outputReg[index] <= 0;
 		end
-	        index <= index + 1;
+	        
 	        
                 if(nextState == CRC) begin
                     if(pid == DATA0) begin
@@ -873,6 +878,7 @@ module decoder
 		        index <= index + 5;
 		    end
                 end
+	        else index <= index + 1;
             end
             if(state == CRC && dataReady) begin
 	        //We need to assign data to the inputReg 
@@ -888,7 +894,7 @@ module decoder
 		end
                 counter <= counter - 1;
             end
-            if(nextState == EOP) begin
+            if(nextState == EOP && state != EOP) begin
                 counter <= 0;
             end
             if(state == EOP) begin
