@@ -1,0 +1,200 @@
+Chronologic VCS simulator copyright 1991-2014
+Contains Synopsys proprietary information.
+Compiler version J-2014.12-SP3-1_Full64; Runtime version J-2014.12-SP3-1_Full64;  Nov  3 11:18 2015
+
+
+********************************************************************************
+*****************************WRITE AND READ TEST********************************
+********************************************************************************
+
+                   6 TestBench:	Sending addr 0x00ab, data 0xcafebabedeadbeef to Device
+
+Receiving new package:                  32
+Raw data:       KJKJKJKK_KJKJKKKK_KJJKJKJ_KJJK_JKJKK_XXJ
+Decoded data:   00000001_10000111_1010000_0010_00001 
+Unstuffed data:                   1010000_0010_00001    
+Received CRC:   00001
+Calculated CRC: 00001
+PID:            OUT
+ADDR:           0x05
+ENDP:           0x4
+
+
+Receiving new package:                 106
+Raw data:       KJKJKJKK_KKJKJKKK_KKJJKKJJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJ_KJJKKKKKKKJJJJJKJ_XXJ
+Decoded data:   00000001_11000011_1101010100000000000000000000000000000000000000000000000000000000_00101111110111100 
+Unstuffed data:                   1101010100000000000000000000000000000000000000000000000000000000_0010111111 111100    
+Received CRC:   0010111111111100
+Calculated CRC: 0010111111111100
+PID:            DATA0
+Data:           0x00000000000000ab
+
+
+Receiving new package:                 308
+Raw data:       KJKJKJKK_JJKJJKKK_XXJ
+Decoded data:   00000001_01001011
+PID:            ACK
+
+
+Receiving new package:                 358
+Raw data:       KJKJKJKK_KJKJKKKK_KJJKJKJ_KJKK_JJJJK_XXJ
+Decoded data:   00000001_10000111_1010000_0001_01110 
+Unstuffed data:                   1010000_0001_01110    
+Received CRC:   01110
+Calculated CRC: 01110
+PID:            OUT
+ADDR:           0x05
+ENDP:           0x8
+
+
+Receiving new package:                 432
+Raw data:       KJKJKJKK_KKJKJKKK_KKKKJJJJKKKKKKJJJKKKJJKKJJJJJKKKJJJJJJKKJJKKKKJJKKKKKKKJJKKJJKJJJ_JJKKKJJJJJKJKKJJ_XXJ
+Decoded data:   00000001_11000011_11110111011111011011010101111011011111010101110101111110101010011_1101101111000101 
+Unstuffed data:                   1111011101111101101101010111101101111101010111010111111 101010011_1101101111000101    
+Received CRC:   1101101111000101
+Calculated CRC: 1101101111000101
+PID:            DATA0
+Data:           0xcafebabedeadbeef
+
+
+Receiving new package:                 634
+Raw data:       KJKJKJKK_JJKJJKKK_XXJ
+Decoded data:   00000001_01001011
+PID:            ACK
+
+                 662 TestBench:	Device received data success! addr 0x00ab, data 0xcafebabedeadbeef
+
+                 664 TestBench:	Request data from Device addr 0x00ab
+
+Receiving new package:                 690
+Raw data:       KJKJKJKK_KJKJKKKK_KJJKJKJ_KJJK_JKJKK_XXJ
+Decoded data:   00000001_10000111_1010000_0010_00001 
+Unstuffed data:                   1010000_0010_00001    
+Received CRC:   00001
+Calculated CRC: 00001
+PID:            OUT
+ADDR:           0x05
+ENDP:           0x4
+
+
+Receiving new package:                 764
+Raw data:       KJKJKJKK_KKJKJKKK_KKJJKKJJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJ_KJJKKKKKKKJJJJJKJ_XXJ
+Decoded data:   00000001_11000011_1101010100000000000000000000000000000000000000000000000000000000_00101111110111100 
+Unstuffed data:                   1101010100000000000000000000000000000000000000000000000000000000_0010111111 111100    
+Received CRC:   0010111111111100
+Calculated CRC: 0010111111111100
+PID:            DATA0
+Data:           0x00000000000000ab
+
+
+Receiving new package:                 966
+Raw data:       KJKJKJKK_JJKJJKKK_XXJ
+Decoded data:   00000001_01001011
+PID:            ACK
+
+
+Receiving new package:                1016
+Raw data:       KJKJKJKK_KJKKJJJK_KJJKJKJ_KJKK_JJJJK_XXJ
+Decoded data:   00000001_10010110_1010000_0001_01110 
+Unstuffed data:                   1010000_0001_01110    
+Received CRC:   01110
+Calculated CRC: 01110
+PID:            IN
+ADDR:           0x05
+ENDP:           0x8
+
+
+Receiving new package:                1088
+Raw data:       KJKJKJKK_KKJKJKKK_KKKKJJJJKKKKKKJJJKKKJJKKJJJJJKKKJJJJJJKKJJKKKKJJKKKKKKKJJKKJJKJJJ_JJKKKJJJJJKJKKJJ_XXJ
+Decoded data:   00000001_11000011_11110111011111011011010101111011011111010101110101111110101010011_1101101111000101 
+Unstuffed data:                   1111011101111101101101010111101101111101010111010111111 101010011_1101101111000101    
+Received CRC:   1101101111000101
+Calculated CRC: 1101101111000101
+PID:            DATA0
+Data:           0xcafebabedeadbeef
+
+
+Receiving new package:                1460
+Raw data:       KJKJKJKK_JJKJJKKK_XXJ
+Decoded data:   00000001_01001011
+PID:            ACK
+
+                1484 TestBench:	Host received correct data! 0xcafebabedeadbeef
+
+
+********************************************************************************
+*****************************END TEST*******************************************
+********************************************************************************
+
+
+********************************************************************************
+**************************UNINITIALIZED MEMORY TEST*****************************
+********************************************************************************
+
+                1496 TestBench:	Request data from Device addr 0x000000ac
+
+Receiving new package:                1522
+Raw data:       KJKJKJKK_KJKJKKKK_KJJKJKJ_KJJK_JKJKK_XXJ
+Decoded data:   00000001_10000111_1010000_0010_00001 
+Unstuffed data:                   1010000_0010_00001    
+Received CRC:   00001
+Calculated CRC: 00001
+PID:            OUT
+ADDR:           0x05
+ENDP:           0x4
+
+
+Receiving new package:                1596
+Raw data:       KJKJKJKK_KKJKJKKK_JKKKJJKKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJKJK_KJJKKKJJJKJJJKKK_XXJ
+Decoded data:   00000001_11000011_0011010100000000000000000000000000000000000000000000000000000000_1010110110011011 
+Unstuffed data:                   0011010100000000000000000000000000000000000000000000000000000000_1010110110011011    
+Received CRC:   1010110110011011
+Calculated CRC: 1010110110011011
+PID:            DATA0
+Data:           0x00000000000000ac
+
+
+Receiving new package:                1796
+Raw data:       KJKJKJKK_JJKJJKKK_XXJ
+Decoded data:   00000001_01001011
+PID:            ACK
+
+
+Receiving new package:                1846
+Raw data:       KJKJKJKK_KJKKJJJK_KJJKJKJ_KJKK_JJJJK_XXJ
+Decoded data:   00000001_10010110_1010000_0001_01110 
+Unstuffed data:                   1010000_0001_01110    
+Received CRC:   01110
+Calculated CRC: 01110
+PID:            IN
+ADDR:           0x05
+ENDP:           0x8
+
+
+Receiving new package:                1918
+Raw data:       KJKJKJKK_KKJKJKKK_KKKKJJJJKKKKKKJJJKKKJJKKJJJJJKKKJJJJJJKKJJKKKKJJKKKKKKKJJKKJJKJJJ_JJKKKJJJJJKJKKJJ_XXJ
+Decoded data:   00000001_11000011_11110111011111011011010101111011011111010101110101111110101010011_1101101111000101 
+Unstuffed data:                   1111011101111101101101010111101101111101010111010111111 101010011_1101101111000101    
+Received CRC:   1101101111000101
+Calculated CRC: 1101101111000101
+PID:            DATA0
+Data:           0xcafebabedeadbeef
+
+
+Receiving new package:                2290
+Raw data:       KJKJKJKK_JJKJJKKK_XXJ
+Decoded data:   00000001_01001011
+PID:            ACK
+
+                2314 TestBench:	Received 0xcafebabedeadbeef instead of 0x00000000
+
+
+********************************************************************************
+*****************************END TEST*******************************************
+********************************************************************************
+$finish called from file "TA_tb_simple.svp", line 2.
+$finish at simulation time                 2324
+           V C S   S i m u l a t i o n   R e p o r t 
+Time: 2324
+CPU Time:      0.190 seconds;       Data structure size:   8.0Mb
+Tue Nov  3 11:18:05 2015

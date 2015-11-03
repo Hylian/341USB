@@ -65,10 +65,14 @@ module usbHost
         //$monitor("dnc0.state(%s) dnc0.packet(%b) p0.state(%s) p0.crc(%b)", dnc0.state, dnc0.packet, p0.state, p0.crc);
         //$monitor("p0.a2.dataReg(%b) p0.crc16Result(%b)", p0.a2.dataReg, p0.crc16Result);
        //$monitor("dnc0.state(%s) p0.state(%s), encoder = %s, done = %b, dataOut_t=%h, datain=%h", dnc0.state, p0.state, enc0.state, rw0.done_p, p0.endpoint_p, rw0.dataIn_p);      
+        //$monitor("dnc0.state(%s) p0.state(%s), encoder = %s, done = %b, dataOut_t=%h, datain=%h", dnc0.state, p0.state, enc0.state, rw0.done_p, p0.packetIn_dec, p0.lastPacketIn);
+        //@(posedge clk);
         memAddrIn_t <= mempage;
         txType_t <= 1;
         start_t <= 1;
+       //@(posedge clk);
         wait(done_t);
+       //@(posedge clk);
         start_t <= 0;
         data <= dataOut_t;
         success <= !error;
@@ -95,13 +99,15 @@ module usbHost
         //$monitor("rw0.state(%s) rw0.done_p(%b) p0.state(%s) p0.readyToReceive_rw(%b) p0.done_enc(%b) enc0.inputReg(%b) enc0.pid(%s) nrzi0.outputBusState(%s) nrzi.outputValid(%b)", rw0.state, rw0.done_p, p0.state, p0.readyToReceive_rw, p0.done_enc, enc0.inputReg, enc0.pid, nrzi0.outputBusState, nrzi0.outputValid);
         //temprst <= 1;
               //$monitor("wires %b %b, nrzi out = %s, nrzioutputValid=%b, dec=%b, enc=%b \n dec packet = %b", wires.DP, wires.DM, nrzi_outputBusState, nrzi_outputValid, p0.done_dec, p0.done_enc, dnc_packet);
-         //$monitor("dnc0.state(%s) p0.state(%s), encoder = %s, done = %b, dataOut_t=%h, datain=%h", dnc0.state, p0.state, enc0.state, rw0.done_p, p0.endpoint_p, rw0.dataIn_t);
-       
+         //$monitor("dnc0.state(%s) p0.state(%s), encoder = %s, done = %b, dataOut_t=%h, datain=%h", dnc0.state, p0.state, enc0.state, rw0.done_p, p0.packetIn_dec, p0.lastPacketIn);
+        //@(posedge clk); 
         memAddrIn_t <= mempage;
         txType_t <= 0;
         start_t <= 1;
         dataIn_t <= data;
+        //@(posedge clk);
         wait(done_t);
+        //@(posedge clk);
         start_t <= 0;
         success <= !error;
         @(posedge clk);
@@ -161,8 +167,8 @@ module readwrite(input logic clk, rst_L, start_t, txType_t,
         nextState = state;
         done_t = 0;
         start_p = 0;
-
         case(state)
+	    //We first need to deside if we are reading or writing
             WAIT: begin 
                 if(start_t) begin
                     if(txType_t) nextState = OUT_ADDR_READ;
@@ -172,11 +178,13 @@ module readwrite(input logic clk, rst_L, start_t, txType_t,
             OUT_ADDR_READ: begin 
                 nextState = OUT_ADDR_READ_DONE;
                 txType_p = 0;
-                dataOut_p = memAddrIn_t_reg;
+                dataOut_p = memAddrIn_t_reg << 48;
                 endpoint_p = 4;
                 start_p = 1;
             end
-            OUT_ADDR_READ_DONE: begin 
+	    //The done states are used to wait for the protocol to finish
+	    //sending and recieving data
+            OUT_ADDR_READ_DONE: begin
                 if(done_p) nextState = IN_DATA_READ;
             end
             IN_DATA_READ: begin 
@@ -191,7 +199,7 @@ module readwrite(input logic clk, rst_L, start_t, txType_t,
             OUT_ADDR_WRITE: begin 
                 nextState = OUT_ADDR_WRITE_DONE;
                 txType_p = 0;
-                dataOut_p = memAddrIn_t_reg;
+                dataOut_p = memAddrIn_t_reg<<48;
                 endpoint_p = 4;
                 start_p = 1;
             end
@@ -248,7 +256,7 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
                 input logic [87:0] packetIn_dec);
 
     enum {WAIT, TOKEN_IN, TOKEN_IN_DONE, DATA_IN, DATA_IN_DONE, CRC_IN, NAK_IN, 
-	  NAK_IN_DONE, ACK_IN, ACK_IN_DONE, TOKEN_OUT, TOKEN_OUT_DONE, DATA_OUT, 
+	  NAK_IN_DONE, ACK_IN, ACK_IN_DONE, TOKEN_OUT, TOKEN_OUT_DONE, DATA_OUT,
 	  DATA_OUT_DONE, NAK_OUT, NAK_OUT_DONE, ACK_OUT, ACK_OUT_DONE} state, nextState;
 
     typedef enum logic[3:0] {OUT = 4'b0001, IN = 4'b1001, DATA0 = 4'b0011,
@@ -261,7 +269,7 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
     logic [4:0] crc5Result;
     logic [87:0] lastPacketIn;
     pidValue pid;
-
+    //The crcs below are used to calculate the residuals
     crc5 #(1) a1(clk, rst_L, lastPacketIn[23:8], startCRC5, crc5Result);
     crc16 #(1) a2(clk, rst_L, lastPacketIn[87:8], startCRC16, crc16Result);
 
@@ -269,8 +277,10 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
         pid = pidValue'(packetIn_dec[3:0]);
         crc = (pid == DATA0) ? crc16Result : crc5Result;
         nextState = state;
+        //We need to ensure that we finish all tasks before we start a new one
         readyToReceive_rw = state == WAIT && done_enc && done_dec;
         start_enc = 0;
+        //This is used to check the residual value
         crcValid = (pid == DATA0) ? (crc == 16'h800D) : (crc == 5'b01100);
         dataOut_rw = lastPacketIn[71:8];
         startCRC5 = 0;
@@ -282,16 +292,20 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
             TOKEN_IN: begin
                 start_enc = 1;
                 packetOut_enc = {endpoint_p, 7'd5, 4'b0110, 4'b1001};
-                nextState = TOKEN_IN_DONE;
+                if(!done_enc) nextState = TOKEN_IN_DONE;
             end
+	    //This state and all of the done states are used to have the fsm wait until
+	    //the encoder or decoder are done
             TOKEN_IN_DONE: begin
                 if(done_enc) nextState = DATA_IN;
             end
+	    //We need to check for errors and stop if we see 8 errors
             DATA_IN: begin
                 if(errorCounter == 8) nextState = WAIT;
                 else if(!done_dec) nextState = DATA_IN_DONE;
             end
             DATA_IN_DONE: begin
+	        //We also want to ensure that if we dont hang so we have a timeout
                 if(done_dec) nextState = CRC_IN;
                 else if(timeoutCounter == 255) nextState = NAK_IN;
             end
@@ -305,7 +319,7 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
             NAK_IN: begin
                 start_enc = 1;
                 packetOut_enc = {4'b0101, 4'b1010};
-                nextState = NAK_IN_DONE;
+                if(!done_enc) nextState = NAK_IN_DONE;
             end
             NAK_IN_DONE: begin
                 if(done_enc) nextState = DATA_IN;
@@ -313,7 +327,7 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
             ACK_IN: begin
                 start_enc = 1;
                 packetOut_enc = {4'b1101, 4'b0010};
-	        nextState = ACK_IN_DONE;
+	        if(!done_enc) nextState = ACK_IN_DONE;
             end
             ACK_IN_DONE: begin
                 if(done_enc) nextState = WAIT;
@@ -321,7 +335,7 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
             TOKEN_OUT: begin
                 start_enc = 1;
                 packetOut_enc = {endpoint_p, 7'd5, 4'b1110, 4'b0001};
-                nextState = TOKEN_OUT_DONE;
+                if(!done_enc) nextState = TOKEN_OUT_DONE;
             end
             TOKEN_OUT_DONE: begin
                 if(done_enc) nextState = DATA_OUT;
@@ -330,7 +344,7 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
                 start_enc = 1;
                 packetOut_enc = {dataIn_rw_reg, 4'b1100, 4'b0011};
                 if(errorCounter == 8) nextState = WAIT;
-                else nextState = DATA_OUT_DONE;
+                else if(!done_enc) nextState = DATA_OUT_DONE;
             end
             DATA_OUT_DONE: begin
                 if(done_enc) nextState = ACK_OUT;
