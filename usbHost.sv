@@ -317,9 +317,9 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
                 start_enc = 1;
                 packetOut_enc = {dataIn_rw_reg, 4'b1100, 4'b0011};
                 //This is us checking to ensure we dont have more than
-	        //8 failed attempts
-	        if(errorCounter == 8) nextState = WAIT;
-                else nextState = DATA_OUT_DONE;
+                //8 failed attempts
+                if(errorCounter == 8) nextState = WAIT;
+                    else nextState = DATA_OUT_DONE;
             end
             DATA_OUT_DONE: begin
                 if(done_enc) nextState = ACK_OUT;
