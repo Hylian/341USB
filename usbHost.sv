@@ -54,6 +54,7 @@ module usbHost
     (input  bit [15:0] mempage, // Page to write
      output bit [63:0] data, // array of bytes to write
      output bit        success);
+        //$monitor("p0.crc16Result(%b) p0.a2.dataReg(%b)", p0.crc16Result, p0.a2.dataReg);
         memAddrIn_t <= mempage;
         txType_t <= 1;
         start_t <= 1;
@@ -728,12 +729,13 @@ module bitUnstuff
             counter <= 0;
         end   
         else begin
-            if(counter == 6 && dataReady && unstuffEnable) begin
+            //if(counter == 6 && dataReady && unstuffEnable) begin
+            if(counter == 6 && dataReady) begin
                 counter <= 0;
             end
             else if(dataReady) begin
                 if(unstuffEnable && inputBusState == bus_J) 
-		    counter <= counter + 1;
+                    counter <= counter + 1;
                 else counter <= 0;
             end
         end
@@ -798,30 +800,31 @@ module decoder
             end
             // SYNC: recieve the the sync byte (00000001)
             SYNC: begin
-                nextState = (counter >= 8'd7 && inputBusState == bus_J) ? 
-			    DATA : SYNC;
+                nextState = (counter >= 8'd7 && inputBusState == bus_J) ? DATA : SYNC;
             end
             // DATA: Increment counter to recieve the data into packet
             DATA: begin
                 unstuffEnable = (index >=8);
-	        nextState = DATA;
-                case(pid)
-                    OUT: begin
-                        if(index >= 8'd23) nextState = EOP;
-                    end
-                    IN: begin
-                        if(index >= 8'd23) nextState = EOP;
-                    end
-                    DATA0: begin
-                        if(index >= 8'd87) nextState = EOP;
-                    end
-                    ACK: begin
-                        if(index >= 8'd7) nextState = EOP;
-                    end
-                    NAK: begin
-                        if(index >= 8'd7) nextState = EOP;
-                    end
-                endcase // case (pid)
+                nextState = DATA;
+                if(dataReady) begin
+                    case(pid)
+                        OUT: begin
+                            if(index >= 8'd23) nextState = EOP;
+                        end
+                        IN: begin
+                            if(index >= 8'd23) nextState = EOP;
+                        end
+                        DATA0: begin
+                            if(index >= 8'd87) nextState = EOP;
+                        end
+                        ACK: begin
+                            if(index >= 8'd7) nextState = EOP;
+                        end
+                        NAK: begin
+                            if(index >= 8'd7) nextState = EOP;
+                        end
+                    endcase // case (pid)
+                end
             end
             // EOP: Check for EOP signal
             EOP: begin
@@ -868,28 +871,22 @@ module decoder
 		    counter <= 0;
 		end
             end
-            if(state == DATA && dataReady) begin
+            if(state == DATA) begin
 	        //We need to assign data to the inputReg 
 	        //by converting the state into a 1 or 0
-                outputReg[index] <= logic'(inputBusState);
-                index <= index + 1;
-                /*
-                if(inputBusState == bus_J) begin
-                    outputReg[index] <= 1;
+                if(dataReady) begin
+                    outputReg[index] <= logic'(inputBusState);
+                    index <= index + 1;
                 end
-                else begin
-                    outputReg[index] <= 0;
-                end
-                */
             end
             if(nextState == EOP && state != EOP) begin
                 counter <= 0;
             end
             if(state == EOP) begin
                 counter <= counter + 1;
+            end
 	        if(nextState == WAIT) begin
-		    outputReady <= 1;
-		end
+                outputReady <= 1;
             end
             state <= nextState;
         end
