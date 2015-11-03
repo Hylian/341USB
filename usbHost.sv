@@ -61,7 +61,10 @@ module usbHost
         //temprst <= 1;
         //@(posedge clk) temprst <= 0;
         //@(posedge clk) temprst <= 1;
-       $monitor("wires %b %b, nrzi out = %s, nrzioutputValid=%b, dec=%b, enc=%b state=%s", wires.DP, wires.DM, nrzi_outputBusState, nrzi_outputValid, p0.done_dec, p0.done_enc, nrdec0.inputBusState);
+       //$monitor("wires %b %b, nrzi out = %s, nrzioutputValid=%b, dec=%b, enc=%b state=%s", wires.DP, wires.DM, nrzi_outputBusState, nrzi_outputValid, p0.done_dec, p0.done_enc, nrdec0.inputBusState);
+        //$monitor("dnc0.state(%s) dnc0.packet(%b) p0.state(%s) p0.crc(%b)", dnc0.state, dnc0.packet, p0.state, p0.crc);
+        //$monitor("p0.a2.dataReg(%b) p0.crc16Result(%b)", p0.a2.dataReg, p0.crc16Result);
+
        
         memAddrIn_t <= mempage;
         txType_t <= 1;
@@ -93,6 +96,7 @@ module usbHost
         //$monitor("rw0.state(%s) rw0.done_p(%b) p0.state(%s) p0.readyToReceive_rw(%b) p0.done_enc(%b) enc0.inputReg(%b) enc0.pid(%s) nrzi0.outputBusState(%s) nrzi.outputValid(%b)", rw0.state, rw0.done_p, p0.state, p0.readyToReceive_rw, p0.done_enc, enc0.inputReg, enc0.pid, nrzi0.outputBusState, nrzi0.outputValid);
         //temprst <= 1;
               //$monitor("wires %b %b, nrzi out = %s, nrzioutputValid=%b, dec=%b, enc=%b \n dec packet = %b", wires.DP, wires.DM, nrzi_outputBusState, nrzi_outputValid, p0.done_dec, p0.done_enc, dnc_packet);
+        //$monitor("dnc0.state(%s) p0.state(%s)", dnc0.state, p0.state);
         memAddrIn_t <= mempage;
         txType_t <= 0;
         start_t <= 1;
@@ -246,21 +250,21 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
                 output logic [87:0] packetOut_enc,
                 input logic [87:0] packetIn_dec);
 
-    enum {WAIT, TOKEN_IN, TOKEN_IN_DONE, DATA_IN, DATA_IN_DONE, CRC_IN, NAK_IN, NAK_IN_DONE, ACK_IN, ACK_IN_DONE, TOKEN_OUT, TOKEN_OUT_DONE, DATA_OUT, DATA_OUT_DONE, NAK_OUT, NAK_OUT_DONE, ACK_OUT} state, nextState;
+    enum {WAIT, TOKEN_IN, TOKEN_IN_DONE, DATA_IN, DATA_IN_DONE, CRC_IN, NAK_IN, NAK_IN_DONE, ACK_IN, ACK_IN_DONE, TOKEN_OUT, TOKEN_OUT_DONE, DATA_OUT, DATA_OUT_DONE, NAK_OUT, NAK_OUT_DONE, ACK_OUT, ACK_OUT_DONE} state, nextState;
 
     typedef enum logic[3:0] {OUT = 4'b0001, IN = 4'b1001, DATA0 = 4'b0011,
                              ACK = 4'b0010, NAK = 4'b1010} pidValue;
 
     logic [63:0] dataIn_rw_reg;
     logic [7:0] crcCounter, timeoutCounter, errorCounter;
-    logic startCRC, crcValid;
+    logic startCRC5, startCRC16, crcValid;
     logic [15:0] crc, crc16Result;
     logic [4:0] crc5Result;
     logic [87:0] lastPacketIn;
     pidValue pid;
 
-    crc5 a1(clk, rst_L, lastPacketIn[18:8], startCRC, crc5Result);
-    crc16 a2(clk, rst_L, dataOut_rw, startCRC, crc16Result);
+    crc5 #(1) a1(clk, rst_L, lastPacketIn[23:8], startCRC5, crc5Result);
+    crc16 #(1) a2(clk, rst_L, lastPacketIn[87:8], startCRC16, crc16Result);
 
     always_comb begin
         pid = pidValue'(packetIn_dec[3:0]);
@@ -270,6 +274,8 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
         start_enc = 0;
         crcValid = (pid == DATA0) ? (crc == 16'h800D) : (crc == 5'b01100);
         dataOut_rw = lastPacketIn[71:8];
+        startCRC5 = 0;
+        startCRC16 = 0;
         case(state)
             WAIT: begin
                 if(start_rw) nextState = txType_rw ? TOKEN_IN : TOKEN_OUT;
@@ -284,16 +290,17 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
             end
             DATA_IN: begin
                 if(errorCounter == 8) nextState = WAIT;
-                else nextState = DATA_IN_DONE;
+                else if(!done_dec) nextState = DATA_IN_DONE;
             end
             DATA_IN_DONE: begin
                 if(done_dec) nextState = CRC_IN;
                 else if(timeoutCounter == 255) nextState = NAK_IN;
             end
             CRC_IN: begin
-                startCRC = (crcCounter == 0);
-                if((pid == DATA0 && crcCounter == 64) ||
-                   (pid != DATA0 && crcCounter == 11)) 
+                startCRC5 = (crcCounter == 0) && (pid != DATA0);
+                startCRC16 = (crcCounter == 0) && (pid == DATA0);
+                if((pid == DATA0 && crcCounter == 81) ||
+                   (pid != DATA0 && crcCounter == 17)) 
                     nextState = (crcValid) ? ACK_IN : NAK_IN;
             end
             NAK_IN: begin
@@ -330,6 +337,9 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
                 if(done_enc) nextState = ACK_OUT;
             end
             ACK_OUT: begin
+                if(!done_dec) nextState = ACK_OUT_DONE;
+            end
+            ACK_OUT_DONE: begin
                 if(done_dec) begin
                     if(pid == ACK) nextState = WAIT;
                     else nextState = DATA_OUT;
@@ -416,8 +426,8 @@ module encoder
                      ACK = 4'b0010, NAK = 4'b1010} pidValue;
     pidValue pid;
 
-    crc5 a1(clk, rst_L, packet[18:8], crc5Enable, crc5Result);
-    crc16 a2(clk, rst_L, packet[71:8], crc16Enable, crc16Result);
+    crc5 #(0) a1(clk, rst_L, packet[18:8], crc5Enable, crc5Result);
+    crc16 #(0) a2(clk, rst_L, packet[71:8], crc16Enable, crc16Result);
 
     always_comb begin
         crc = (pid == DATA0) ? ~crc16Result : ~crc5Result;
@@ -541,13 +551,15 @@ endmodule : encoder
 
 module crc5
     (input logic clk, rst_L,
-     input logic [10:0] data,
+     input logic [15:0] data,
      input logic dataReady,
      output logic [4:0] crc);
 
+    parameter CALC_RESIDUE = 0;
+
     enum {WAIT, GO} state, nextState;
 
-    logic [10:0] dataReg;
+    logic [15:0] dataReg;
     logic [4:0] counter;
 
     logic crc0_next, crc2_next;
@@ -555,7 +567,12 @@ module crc5
     always_comb begin
         case(state)
             WAIT: nextState = (dataReady) ? GO : WAIT;
-            GO: nextState = (counter == 5'd10) ? WAIT : GO;
+            GO: begin
+                if(CALC_RESIDUE)
+                    nextState = (counter == 5'd15) ? WAIT : GO;
+                else
+                    nextState = (counter == 5'd10) ? WAIT : GO;
+            end
         endcase
 
         crc0_next = dataReg[counter]^crc[4];
@@ -589,21 +606,28 @@ endmodule : crc5
 
 module crc16
     (input logic clk, rst_L,
-     input logic [63:0]  data,
+     input logic [79:0]  data,
      input logic dataReady,
      output logic [15:0] crc);
+    
+    parameter CALC_RESIDUE = 0;
 
    
     enum {WAIT, GO} state, nextState;
 
-    logic [63:0] dataReg;
+    logic [79:0] dataReg;
     logic [7:0] counter;
     logic 	crc0_next, crc2_next, crc15_next;
    
     always_comb begin
         case(state)
             WAIT: nextState = (dataReady) ? GO : WAIT;
-            GO: nextState = (counter == 8'd63) ? WAIT : GO;
+            GO: begin
+                if(CALC_RESIDUE)
+                    nextState = (counter == 8'd79) ? WAIT : GO;
+                else
+                    nextState = (counter == 8'd63) ? WAIT : GO;
+            end
         endcase // case (state)
         crc0_next = dataReg[counter]^crc[15];
         crc2_next = crc0_next^crc[1];
@@ -792,13 +816,13 @@ module decoder
 	        nextState = DATA;
                 case(pid)
                     OUT: begin
-                        if(index >= 8'd18) nextState = CRC;
+                        if(index >= 8'd23) nextState = EOP;
                     end
                     IN: begin
-                        if(index >= 8'd18) nextState = CRC;
+                        if(index >= 8'd23) nextState = EOP;
                     end
                     DATA0: begin
-                        if(index >= 8'd71) nextState = CRC;
+                        if(index >= 8'd87) nextState = EOP;
                     end
                     ACK: begin
                         if(index >= 8'd7) nextState = EOP;
@@ -860,39 +884,16 @@ module decoder
             if(state == DATA && dataReady) begin
 	        //We need to assign data to the inputReg 
 	        //by converting the state into a 1 or 0
-	        if(inputBusState == bus_J) begin
-		    outputReg[index] <= 1;
-		end
-		else begin
-		    outputReg[index] <= 0;
-		end
-	        
-	        
-                if(nextState == CRC) begin
-                    if(pid == DATA0) begin
-		        counter <= 15;
-		        index <= index + 16;
-		    end
-                    else begin
-		        counter <= 4;
-		        index <= index + 5;
-		    end
+                outputReg[index] <= logic'(inputBusState);
+                index <= index + 1;
+                /*
+                if(inputBusState == bus_J) begin
+                    outputReg[index] <= 1;
                 end
-	        else index <= index + 1;
-            end
-            if(state == CRC && dataReady) begin
-	        //We need to assign data to the inputReg 
-	        //by converting the state into a 1 or 0
-	        //However, the crc is inverted and in MSB 
-	        // so we need to go from left to right
-	        //and invert it
-	        if(inputBusState == bus_J) begin
-		    outputReg[index - counter] <= 0;
-		end
-		else begin
-		    outputReg[index - counter] <= 1;
-		end
-                counter <= counter - 1;
+                else begin
+                    outputReg[index] <= 0;
+                end
+                */
             end
             if(nextState == EOP && state != EOP) begin
                 counter <= 0;
