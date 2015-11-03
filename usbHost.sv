@@ -1,4 +1,13 @@
-// Write your usb host here.  Do not modify the port list.
+/*
+    usbHost.sv
+    Edward Shin / edshin
+    Chris Meredith / cmeredit
+
+    18-341
+    Fall 2015
+
+    3 November 2015
+*/
 
 typedef enum logic [1:0] {bus_J = 1, bus_K = 0, bus_SE0 = 2} busState;
 
@@ -108,6 +117,7 @@ module usbHost
 
 endmodule: usbHost
 
+/* readwrite: turns a memory read/write command into a IN/OUT transactions */
 module readwrite(input logic clk, rst_L, start_t, txType_t,
                  input logic [15:0] memAddrIn_t,
                  input logic [63:0] dataIn_t,
@@ -119,61 +129,82 @@ module readwrite(input logic clk, rst_L, start_t, txType_t,
                  output logic [63:0] dataOut_p,
                  input logic done_p);
     
-    //_t : talks to task
-    //_p : talks to protocol
-    //txtype 0 means output
+    /* 
+        Variable Conventions:
+            _t: talks to task
+            _p: talks to protocol
+            txType: 0 means OUT, 1 means IN
+    */
 
     enum {WAIT, OUT_ADDR_READ, OUT_ADDR_READ_DONE, IN_DATA_READ, 
 	  IN_DATA_READ_DONE, OUT_ADDR_WRITE, OUT_ADDR_WRITE_DONE, 
 	  OUT_DATA_WRITE, OUT_DATA_WRITE_DONE, DONE} state, nextState;
 
-    logic [15:0] memAddrIn_t_reg;
-    logic [63:0] dataIn_t_reg;
+    logic [15:0] memAddrIn_t_reg; // Latches memory address
+    logic [63:0] dataIn_t_reg; // Latches data to write
 
     always_comb begin
         nextState = state;
         done_t = 0;
         start_p = 0;
         case(state)
-            //We first need to deside if we are reading or writing
+
+            // Are we reading or writing?
             WAIT: begin 
                 if(start_t) begin
                     if(txType_t) nextState = OUT_ADDR_READ;
                     else nextState = OUT_ADDR_WRITE;
                 end
             end
+
+            // READ states
+
+            // Output the memAddr to read from the thumbdrive
             OUT_ADDR_READ: begin 
                 nextState = OUT_ADDR_READ_DONE;
                 txType_p = 0;
-                //Address of memory is MSB of data packet
+                // Address of memory is MSB of data packet
                 dataOut_p = {memAddrIn_t_reg, 48'd0};
                 endpoint_p = 4;
                 start_p = 1;
             end
-            //The done states are used to wait for the protocol to finish
-            //sending and recieving data
+
+            // Wait for protocol to finish sending packet
             OUT_ADDR_READ_DONE: begin
                 if(done_p) nextState = IN_DATA_READ;
             end
+
+            // Read in the data from the thumbdrive
             IN_DATA_READ: begin 
                 nextState = IN_DATA_READ_DONE;
                 txType_p = 1;
                 endpoint_p = 8;
                 start_p = 1;
             end
+
+            // Wait for protocol to finish reading
             IN_DATA_READ_DONE: begin 
                 if(done_p) nextState = DONE;
             end
+
+            // WRITE states
+
+            // Output the memAddr to read from the thumbdrive
             OUT_ADDR_WRITE: begin 
                 nextState = OUT_ADDR_WRITE_DONE;
                 txType_p = 0;
+                // Address of memory is MSB of data packet
                 dataOut_p = {memAddrIn_t_reg, 48'd0};
                 endpoint_p = 4;
                 start_p = 1;
             end
+
+            // Wait for protocol to finish writing the address
             OUT_ADDR_WRITE_DONE: begin
                 if(done_p) nextState = OUT_DATA_WRITE;
             end
+            
+            // Output the data to write to the thumbdrive
             OUT_DATA_WRITE: begin 
                 nextState = OUT_DATA_WRITE_DONE;
                 txType_p = 0;
@@ -181,9 +212,13 @@ module readwrite(input logic clk, rst_L, start_t, txType_t,
                 endpoint_p = 8;
                 start_p = 1;
             end
+
+            // Wait for protocol to finish writing
             OUT_DATA_WRITE_DONE: begin
                 if(done_p) nextState = DONE;
             end
+
+            // Say we're done
             DONE: begin
                 done_t = 1;
                 nextState = WAIT;
@@ -194,7 +229,7 @@ module readwrite(input logic clk, rst_L, start_t, txType_t,
     always_ff @(posedge clk, negedge rst_L) begin
         if(~rst_L) begin
             state <= WAIT;
-            memAddrIn_t_reg <= 0; //we need to latch the values from re and wr
+            memAddrIn_t_reg <= 0;
             dataIn_t_reg <= 0;
         end
         else begin
@@ -204,8 +239,7 @@ module readwrite(input logic clk, rst_L, start_t, txType_t,
                     dataIn_t_reg <= dataIn_t;
                 end
                 IN_DATA_READ_DONE: begin
-                //When we finish reading data we latch it so read can use
-                //it later
+                    // Latch data from protocol to give to task
                     if(done_p) dataOut_t <= dataIn_p;
                 end
             endcase
@@ -214,8 +248,8 @@ module readwrite(input logic clk, rst_L, start_t, txType_t,
     end
 
 endmodule: readwrite
-
     
+/* protocol: handles sending or receiving a single IN or OUT transaction */
 module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
                 output logic readyToReceive_rw, error, start_enc,
                 input logic [3:0] endpoint_p,
@@ -223,7 +257,14 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
                 output logic [63:0] dataOut_rw,
                 output logic [87:0] packetOut_enc,
                 input logic [87:0] packetIn_dec);
-    // txType: 1 => input, 0 => output
+
+    /*
+        Variable Conventions:
+            _rw: talks to r/w
+            _enc: talks to enc
+            _dec: talks to dec
+            txType: 1 is IN, 0 is OUT
+    */
 
     enum {WAIT, TOKEN_IN, TOKEN_IN_DONE, DATA_IN, DATA_IN_DONE, CRC_IN, NAK_IN, 
 	  NAK_IN_DONE, ACK_IN, ACK_IN_DONE, TOKEN_OUT, TOKEN_OUT_DONE, DATA_OUT,
@@ -237,50 +278,63 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
     logic startCRC5, startCRC16, crcValid;
     logic [15:0] crc, crc16Result;
     logic [4:0] crc5Result;
-    logic [87:0] lastPacketIn;
+    logic [87:0] lastPacketIn; // Packet latched in from the decoder
     pidValue pid;
-    //The crcs below are used to calculate the residuals
+
     crc5 #(1) a1(clk, rst_L, lastPacketIn[23:8], startCRC5, crc5Result);
     crc16 #(1) a2(clk, rst_L, lastPacketIn[87:8], startCRC16, crc16Result);
 
     always_comb begin
         pid = pidValue'(packetIn_dec[3:0]);
         crc = (pid == DATA0) ? crc16Result : crc5Result;
-        nextState = state;
-        //We need to ensure that we finish all tasks before we start a new one
-        readyToReceive_rw = state == WAIT && done_enc && done_dec;
         start_enc = 0;
-        //This is used to check the residual value
-        crcValid = (pid == DATA0) ? (crc == 16'h800D) : (crc == 5'b01100);
+
+        // We're ready for more transactions from r/w fsm
+        readyToReceive_rw = (state == WAIT) && done_enc && done_dec;
+
+        // Output the payload to the r/w module
         dataOut_rw = lastPacketIn[71:8];
+
+        // Check if residual matches based on PID
+        crcValid = (pid == DATA0) ? (crc == 16'h800D) : (crc == 5'b01100);
         startCRC5 = 0;
         startCRC16 = 0;
+
+        nextState = state;
+
         case(state)
             WAIT: begin
                 if(start_rw) nextState = txType_rw ? TOKEN_IN : TOKEN_OUT;
             end
+
+            // IN Transaction States
+
+            // Transmit an IN token
             TOKEN_IN: begin
                 start_enc = 1;
                 packetOut_enc = {endpoint_p, 7'd5, 4'b0110, 4'b1001};
                 nextState = TOKEN_IN_DONE;
             end
-            //This state and all of the done states are used 
-            //to have the fsm wait until
-            //the encoder or decoder are done
+
+            // Wait until encoder says we're done transmitting
             TOKEN_IN_DONE: begin
                 if(done_enc) nextState = DATA_IN;
             end
-            //We need to check for errors and stop if we see 8 errors
+
+            // Wait for a response from the device, error count handling
             DATA_IN: begin
                 if(errorCounter == 8) nextState = WAIT;
+                // done_dec needs to go low at least once so we know a new cycle has started
                 else if(!done_dec) nextState = DATA_IN_DONE;
             end
+
+            // Wait for a response from the device, timeout handling
             DATA_IN_DONE: begin
-	        //We also want to ensure that if we 
-	        //don't hang so we have a timeout
                 if(done_dec) nextState = CRC_IN;
                 else if(timeoutCounter == 255) nextState = NAK_IN;
             end
+
+            // Calculate residue to confirm validity of packet
             CRC_IN: begin
                 startCRC5 = (crcCounter == 0) && (pid != DATA0);
                 startCRC16 = (crcCounter == 0) && (pid == DATA0);
@@ -288,44 +342,67 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
                    (pid != DATA0 && crcCounter == 17)) 
                     nextState = (crcValid) ? ACK_IN : NAK_IN;
             end
+
+            // If packet was not valid, send a NAK
             NAK_IN: begin
                 start_enc = 1;
                 packetOut_enc = {4'b0101, 4'b1010};
                 nextState = NAK_IN_DONE;
             end
+
+            // Wait for encoder to finish sending NAK
             NAK_IN_DONE: begin
                 if(done_enc) nextState = DATA_IN;
             end
+
+            // If packet was valid, send an ACK
             ACK_IN: begin
                 start_enc = 1;
                 packetOut_enc = {4'b1101, 4'b0010};
                 nextState = ACK_IN_DONE;
             end
+
+            // Wait for encoder to finish sending ACK
             ACK_IN_DONE: begin
                 if(done_enc) nextState = WAIT;
             end
+
+            // OUT Transaction States
+
+            // Send an OUT token
             TOKEN_OUT: begin
                 start_enc = 1;
                 packetOut_enc = {endpoint_p, 7'd5, 4'b1110, 4'b0001};
                 nextState = TOKEN_OUT_DONE;
             end
+
+            // Wait for encoder to finish sending OUT token
             TOKEN_OUT_DONE: begin
                 if(done_enc) nextState = DATA_OUT;
             end
+
+            // Transmit our data payload
             DATA_OUT: begin
                 start_enc = 1;
                 packetOut_enc = {dataIn_rw_reg, 4'b1100, 4'b0011};
-                //This is us checking to ensure we dont have more than
-                //8 failed attempts
+
+                // Error count handling
                 if(errorCounter == 8) nextState = WAIT;
-                    else nextState = DATA_OUT_DONE;
+                else nextState = DATA_OUT_DONE;
             end
+
+            // Wait for encoder to finish transmitting DATA
             DATA_OUT_DONE: begin
                 if(done_enc) nextState = ACK_OUT;
             end
+
+            // Wait for an ACK from the device
             ACK_OUT: begin
+                // done_dec needs to go low for us to know it's started on a new packet
                 if(!done_dec) nextState = ACK_OUT_DONE;
             end
+
+            // ACK or NAK handling
             ACK_OUT_DONE: begin
                 if(done_dec) begin
                     if(pid == ACK) nextState = WAIT;
@@ -345,9 +422,12 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
         end
 
         else begin
+
+            // Reset the error counter on a new cycle
             if(nextState == WAIT && errorCounter == 8) begin
                 error <= 1;
             end
+
             case(state)
                 WAIT: begin
                     errorCounter <= 0;
@@ -365,6 +445,8 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
                 end
                 DATA_IN_DONE: begin
                     timeoutCounter <= timeoutCounter + 1;
+
+                    // Latch in the data from the decoder
                     if(done_dec) begin
                         lastPacketIn <= packetIn_dec;
                     end
@@ -380,6 +462,7 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
                     if(done_dec && pid != ACK) errorCounter <= errorCounter + 1;
                 end
             endcase
+
             state <= nextState;
         end
 
@@ -644,6 +727,7 @@ module crc16
 
 endmodule : crc16
 
+// bitstuff: take in a bitstream and stuff the bits
 module bitStuff
     (input logic clk, rst_L, dataReady, stuffEnable,
      input busState inputBusState,
@@ -654,8 +738,13 @@ module bitStuff
     logic stuffEnableLatch;
 
     always_comb begin
+        // OK to read our data as long as we're receiving input or we're stuffing
         outputReady = dataReady || (counter == 6);
+
+        // Pass through input to output unless we're stuffing
         outputBusState = (counter == 6) ? bus_K : inputBusState;   
+
+        // We're ready for more data unless we're stuffing
         readyToReceive = !(counter == 6);
     end
 
@@ -676,6 +765,7 @@ module bitStuff
 
 endmodule : bitStuff
 
+// nrziEncode: turns a bit stream into nrzi encoded bus states
 module nrziEncode
     (input logic clk, rst_L, dataReady,
      input busState inputBusState,
@@ -684,7 +774,7 @@ module nrziEncode
 
     always_ff @(posedge clk, negedge rst_L) begin
         if(~rst_L) begin
-            outputBusState <= bus_J;
+            outputBusState <= bus_J; // Initially assumes J as prev state
             outputValid <= 0;
         end
         else begin
@@ -699,7 +789,7 @@ module nrziEncode
     end
 endmodule : nrziEncode
 
-
+// bitUnstuff: removes stuffed bits from a bitstream
 module bitUnstuff
     (input logic clk, rst_L, dataReady, unstuffEnable,
      input busState inputBusState,
@@ -709,7 +799,8 @@ module bitUnstuff
     logic [2:0]	counter;
 
     always_comb begin
-        //If unstuff is not enabled then this will act as a pass through
+        // Pass through bitstream if !unstuffEnable
+        // If !outputReady, receiver (decoder) needs to wait a clock for us
         outputReady = (dataReady && !(counter == 6)) || !unstuffEnable;
         outputBusState = inputBusState;   
     end
@@ -728,6 +819,7 @@ module bitUnstuff
     end
 endmodule : bitUnstuff
 
+// nrziDecode: turns nrzi-encoded bitstream into a normal bitstream
 module nrziDecode
     (input logic clk, rst_L, dataReady,
      input busState inputBusState,
@@ -740,7 +832,7 @@ module nrziDecode
         if(~rst_L) begin
             outputBusState <= bus_J;
             outputValid <= 0;
-            lastBusState <= bus_J;
+            lastBusState <= bus_J; // Assume last state was J
         end
         else begin
             if(dataReady) begin
@@ -756,6 +848,7 @@ module nrziDecode
     end
 endmodule : nrziDecode
 
+// decoder: decodes a bitstream into a latchable packet
 module decoder
     (input logic clk, rst_L, dataReady,
      output logic [87:0] packet,
