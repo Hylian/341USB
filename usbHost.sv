@@ -461,7 +461,7 @@ module encoder
             // DATA: Increment a counter to transmit the packet payload one bit at a time
             DATA: begin
                 outputBusState = busState'(inputReg[index]);
-                stuffEnable = index >= 8;
+                stuffEnable = index >= 7;
                 nextState = DATA;
                 case(pid)
                     OUT: begin
@@ -866,7 +866,7 @@ module decoder
 	        //First we see if we have recieved the sync
                 if(nextState == DATA) begin
                     counter <= 0;
-		    //outputReg <= 0;
+		    outputReg <= 0;
 		    outputReady <= 0;
 		    index <= 0;
 		    //Currently the output is still the old packet 

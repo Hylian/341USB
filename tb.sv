@@ -11,15 +11,17 @@ module test
    
    //first we start the clk
    always begin
+      clk = 1;
+      
       forever clk = #1 ~clk;
    end
    
    initial begin
-      rst_L = 1;
+      rst_L <= 1;
       @(posedge clk);
-      rst_L = 0;
+      rst_L <= 0;
       @(posedge clk);
-      rst_L = 1;
+      rst_L <= 1;
       @(posedge clk);
       $display("****************************************");
       $display("****************Write Test***************");
@@ -39,9 +41,11 @@ module test
 	 $display("Test 1: Failed - no success");
 	 $display("addr = %h \n data=%h", addr, dataWrite);
       end
-      
       @(posedge clk);
-      #5 host.writeData(addr, dataWrite, did_it_right);
+      addr <= 16'h0001;
+      dataWrite <= 64'h0000_0000_0000_0100;
+      @(posedge clk);
+      host.writeData(addr, dataWrite, did_it_right);
       @(posedge clk);
       if(did_it_right) begin
 	 $display("Test 2: Passed");
@@ -69,16 +73,7 @@ module test
       end
       
       @(posedge clk);
-      #5 host.readData(addr, dataRead, did_it_right);
-      @(posedge clk);
-      if(did_it_right && dataRead == 0) begin
-	 $display("Test 4: Passed");
-      end
-      else begin
-	 errorCount <= errorCount + 1;
-	 $display("Test 4: Failed - no success");
-	 $display("addr = %h \n data=%h", addr, dataRead);
-      end
+     
    end // initial begin
    
 endmodule : test
