@@ -63,7 +63,7 @@ module test
       @(posedge clk);
       host.readData(addr, dataRead, did_it_right);
       @(posedge clk);
-      if(did_it_right && ~dataRead == 0) begin
+      if(did_it_right && dataRead == 64'hFFFF_FFFF_FFFF_FFFF) begin
 	 $display("Test 3: Passed");
       end
       else begin
@@ -73,7 +73,25 @@ module test
       end
       
       @(posedge clk);
-     
+      #100 $finish;
+      $display("****************************************");
+      $display("*************Bad Mem Test***************");
+      $display("****************************************");
+      
+      addr <= 16'h1234;
+      @(posedge clk);
+      host.readData(addr, dataRead, did_it_right);
+      @(posedge clk);
+      if(did_it_right && dataRead == 0) begin
+	 $display("Test 4: Passed");
+      end
+      else begin
+	 errorCount <= errorCount + 1;
+	 $display("Test 4: Failed - no success");
+	 $display("addr = %h \n data=%h", addr, dataRead);
+      end
+      
+      @(posedge clk);
    end // initial begin
    
 endmodule : test
