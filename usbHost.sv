@@ -54,7 +54,6 @@ module usbHost
     (input  bit [15:0] mempage, // Page to write
      output bit [63:0] data, // array of bytes to write
      output bit        success);
-        //$monitor("p0.crc16Result(%b) p0.a2.dataReg(%b)", p0.crc16Result, p0.a2.dataReg);
         memAddrIn_t <= mempage;
         txType_t <= 1;
         start_t <= 1;
@@ -136,7 +135,7 @@ module readwrite(input logic clk, rst_L, start_t, txType_t,
         done_t = 0;
         start_p = 0;
         case(state)
-	    //We first need to deside if we are reading or writing
+            //We first need to deside if we are reading or writing
             WAIT: begin 
                 if(start_t) begin
                     if(txType_t) nextState = OUT_ADDR_READ;
@@ -146,14 +145,13 @@ module readwrite(input logic clk, rst_L, start_t, txType_t,
             OUT_ADDR_READ: begin 
                 nextState = OUT_ADDR_READ_DONE;
                 txType_p = 0;
-	        //Since it is suppose to be in the last 2 bytes 
-	        // we shift it over
+                //Address of memory is MSB of data packet
                 dataOut_p = {memAddrIn_t_reg, 48'd0};
                 endpoint_p = 4;
                 start_p = 1;
             end
-	    //The done states are used to wait for the protocol to finish
-	    //sending and recieving data
+            //The done states are used to wait for the protocol to finish
+            //sending and recieving data
             OUT_ADDR_READ_DONE: begin
                 if(done_p) nextState = IN_DATA_READ;
             end
@@ -206,8 +204,8 @@ module readwrite(input logic clk, rst_L, start_t, txType_t,
                     dataIn_t_reg <= dataIn_t;
                 end
                 IN_DATA_READ_DONE: begin
-		    //When we finish reading data we latch it so read can use
-		    //it later
+                //When we finish reading data we latch it so read can use
+                //it later
                     if(done_p) dataOut_t <= dataIn_p;
                 end
             endcase
@@ -225,11 +223,11 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
                 output logic [63:0] dataOut_rw,
                 output logic [87:0] packetOut_enc,
                 input logic [87:0] packetIn_dec);
+    // txType: 1 => input, 0 => output
 
     enum {WAIT, TOKEN_IN, TOKEN_IN_DONE, DATA_IN, DATA_IN_DONE, CRC_IN, NAK_IN, 
 	  NAK_IN_DONE, ACK_IN, ACK_IN_DONE, TOKEN_OUT, TOKEN_OUT_DONE, DATA_OUT,
-	  DATA_OUT_DONE, NAK_OUT, NAK_OUT_DONE, ACK_OUT, 
-	  ACK_OUT_DONE} state, nextState;
+	  DATA_OUT_DONE, NAK_OUT, NAK_OUT_DONE, ACK_OUT, ACK_OUT_DONE} state, nextState;
 
     typedef enum logic[3:0] {OUT = 4'b0001, IN = 4'b1001, DATA0 = 4'b0011,
                              ACK = 4'b0010, NAK = 4'b1010} pidValue;
@@ -266,20 +264,20 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
                 packetOut_enc = {endpoint_p, 7'd5, 4'b0110, 4'b1001};
                 nextState = TOKEN_IN_DONE;
             end
-	    //This state and all of the done states are used 
-	    // to have the fsm wait until
-	    //the encoder or decoder are done
+            //This state and all of the done states are used 
+            //to have the fsm wait until
+            //the encoder or decoder are done
             TOKEN_IN_DONE: begin
                 if(done_enc) nextState = DATA_IN;
             end
-	    //We need to check for errors and stop if we see 8 errors
+            //We need to check for errors and stop if we see 8 errors
             DATA_IN: begin
                 if(errorCounter == 8) nextState = WAIT;
                 else if(!done_dec) nextState = DATA_IN_DONE;
             end
             DATA_IN_DONE: begin
 	        //We also want to ensure that if we 
-	        // dont hang so we have a timeout
+	        //don't hang so we have a timeout
                 if(done_dec) nextState = CRC_IN;
                 else if(timeoutCounter == 255) nextState = NAK_IN;
             end
@@ -301,7 +299,7 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
             ACK_IN: begin
                 start_enc = 1;
                 packetOut_enc = {4'b1101, 4'b0010};
-	        nextState = ACK_IN_DONE;
+                nextState = ACK_IN_DONE;
             end
             ACK_IN_DONE: begin
                 if(done_enc) nextState = WAIT;
@@ -387,9 +385,6 @@ module protocol(input logic clk, rst_L, txType_rw, start_rw, done_enc, done_dec,
 
     end
 
-    // txType: 1 => input, 0 => output
-
-
 endmodule: protocol
 
 /*
@@ -448,10 +443,10 @@ module encoder
                 end
             end
             // DATA: Increment a counter to transmit 
-	    // the packet payload one bit at a time
+            // the packet payload one bit at a time
             DATA: begin
                 outputBusState = busState'(inputReg[index]);
-                stuffEnable = index >= 7;
+                stuffEnable = index >= 8'd7;
                 nextState = DATA;
                 case(pid)
                     OUT: begin
@@ -514,7 +509,7 @@ module encoder
                     if(nextState == DATA) begin
                         counter <= 0;
                     end
-		    else counter <= counter + 1;
+                    else counter <= counter + 1;
                 end
                 if(state == DATA) begin
                     index <= index + 1;
@@ -601,7 +596,6 @@ module crc16
      output logic [15:0] crc);
     
     parameter CALC_RESIDUE = 0;
-
    
     enum {WAIT, GO} state, nextState;
 
@@ -618,7 +612,7 @@ module crc16
                 else
                     nextState = (counter == 8'd63) ? WAIT : GO;
             end
-        endcase // case (state)
+        endcase 
         crc0_next = dataReg[counter]^crc[15];
         crc2_next = crc0_next^crc[1];
         crc15_next = crc0_next^crc[14];
@@ -672,12 +666,9 @@ module bitStuff
         end   
         else begin
             stuffEnableLatch <= stuffEnable;
-            if(counter == 6) begin
-                counter <= 0;
-            end
+            if(counter == 6) counter <= 0;
             else if(dataReady) begin
-                if(stuffEnableLatch && inputBusState == bus_J) 
-		    counter <= counter + 1;
+                if(stuffEnableLatch && inputBusState == bus_J) counter <= counter + 1;
                 else counter <= 0;
             end
         end
@@ -700,8 +691,7 @@ module nrziEncode
             if(dataReady) begin
                 outputValid <= 1;
                 if(outputBusState == bus_SE0) outputBusState <= inputBusState;
-                else if(inputBusState == bus_K) 
-		    outputBusState <= (outputBusState == bus_K) ? bus_J : bus_K;
+                else if(inputBusState == bus_K) outputBusState <= (outputBusState == bus_K) ? bus_J : bus_K;
                 else if(inputBusState == bus_SE0) outputBusState <= bus_SE0;
             end
             else outputValid <= 0;
@@ -729,13 +719,9 @@ module bitUnstuff
             counter <= 0;
         end   
         else begin
-            //if(counter == 6 && dataReady && unstuffEnable) begin
-            if(counter == 6 && dataReady) begin
-                counter <= 0;
-            end
+            if(counter == 6 && dataReady) counter <= 0;
             else if(dataReady) begin
-                if(unstuffEnable && inputBusState == bus_J) 
-                    counter <= counter + 1;
+                if(unstuffEnable && inputBusState == bus_J) counter <= counter + 1;
                 else counter <= 0;
             end
         end
@@ -754,8 +740,8 @@ module nrziDecode
         if(~rst_L) begin
             outputBusState <= bus_J;
             outputValid <= 0;
-	    lastBusState <= bus_J;
-	end
+            lastBusState <= bus_J;
+        end
         else begin
             if(dataReady) begin
                 outputValid <= 1;
@@ -763,7 +749,7 @@ module nrziDecode
                 else if(inputBusState == bus_SE0) outputBusState <= bus_SE0;
                 else if(inputBusState == lastBusState) outputBusState <=  bus_J;
                 else if(inputBusState != lastBusState) outputBusState <=  bus_K;
-	        lastBusState <= inputBusState;
+                lastBusState <= inputBusState;
             end
             else outputValid <= 0;
         end
@@ -804,7 +790,7 @@ module decoder
             end
             // DATA: Increment counter to recieve the data into packet
             DATA: begin
-                unstuffEnable = (index >=8);
+                unstuffEnable = (index >= 8'd8);
                 nextState = DATA;
                 if(dataReady) begin
                     case(pid)
@@ -823,17 +809,13 @@ module decoder
                         NAK: begin
                             if(index >= 8'd7) nextState = EOP;
                         end
-                    endcase // case (pid)
+                    endcase
                 end
             end
             // EOP: Check for EOP signal
             EOP: begin
-                if(counter >= 8'd2) begin
-                    nextState = WAIT;
-                end
-                else begin
-                    nextState = EOP;
-                end
+                if(counter >= 8'd2) nextState = WAIT;
+                else nextState = EOP;
             end
         endcase
     end
@@ -844,50 +826,40 @@ module decoder
             counter <= 0;
             index <= 0;
             outputReady <= 0;
-	    outputReg <= 0;
+            outputReg <= 0;
         end
         else begin
             if(state == WAIT) begin
                 counter <= 0;
                 index <= 0;
-	        
             end
             if(state == SYNC && dataReady) begin
-	        //First we see if we have recieved the sync
+            //First we see if we have recieved the sync
                 if(nextState == DATA) begin
                     counter <= 0;
-		    index <= 0;
-		    outputReg <= 0;
-		    outputReady <= 0;
-		    //Currently the output is still the old packet 
-		    //which is valid until the sync
-		end
-	        //Then we wait until we see a stream of at least 7 zeros
-	        else if(inputBusState == bus_K) begin
-		    counter <= counter + 1;
-		end
-	        //If we get a zero before this, we reset counter
-	        else if(counter < 8'd7 && inputBusState != bus_K) begin
-		    counter <= 0;
-		end
+                    index <= 0;
+                    outputReg <= 0;
+                    outputReady <= 0;
+                    //Currently the output is still the old packet 
+                    //which is valid until the sync
+                end
+                //Then we wait until we see a stream of at least 7 zeros
+                else if(inputBusState == bus_K) counter <= counter + 1;
+                //If we get a zero before this, we reset counter
+                else if(counter < 8'd7 && inputBusState != bus_K) counter <= 0;
             end
             if(state == DATA) begin
-	        //We need to assign data to the inputReg 
-	        //by converting the state into a 1 or 0
+            //We need to assign data to the inputReg 
+            //by converting the state into a 1 or 0
                 if(dataReady) begin
                     outputReg[index] <= logic'(inputBusState);
                     index <= index + 1;
                 end
             end
-            if(nextState == EOP && state != EOP) begin
-                counter <= 0;
-            end
-            if(state == EOP) begin
-                counter <= counter + 1;
-            end
-	        if(nextState == WAIT) begin
-                outputReady <= 1;
-            end
+            if(nextState == EOP && state != EOP) counter <= 0;
+            if(state == EOP) counter <= counter + 1;
+	        if(nextState == WAIT) outputReady <= 1;
+
             state <= nextState;
         end
     end
